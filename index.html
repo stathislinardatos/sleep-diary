@@ -253,6 +253,7 @@ const STR = {
   legend:"TST = total sleep · SE = sleep efficiency · SOL = time to fall asleep · WASO = time awake during the night",
   preparing:"Preparing your report…", pdfReady:"Your report is ready as a PDF 🤍",
   noDataYet:"Add at least one night before creating a report.",
+  guestLimit:"You can keep one day without an account. To save more days — and sync them to your doctor — please create a free account.",
   mailSubject:"Sleep diary report",
   mailBody:"Dear Doctor,\n\nPlease find attached my sleep diary report (PDF).\n\nKind regards",
   rHead:["Date","To bed","Tried to sleep","Min to sleep","Awakenings","Awake (min)","Final wake","Out of bed","Total sleep","Effic.","Quality","Comments"],
@@ -339,6 +340,7 @@ const STR = {
   legend:"TST = συνολικός ύπνος · SE = αποδοτικότητα ύπνου · SOL = χρόνος επέλευσης ύπνου · WASO = χρόνος ξύπνιου μέσα στη νύχτα",
   preparing:"Ετοιμάζεται η αναφορά σας…", pdfReady:"Η αναφορά σας είναι έτοιμη ως PDF 🤍",
   noDataYet:"Προσθέστε τουλάχιστον μία νύχτα πριν δημιουργήσετε αναφορά.",
+  guestLimit:"Χωρίς λογαριασμό μπορείτε να κρατήσετε μία ημέρα. Για να αποθηκεύσετε περισσότερες — και να συγχρονίζονται με τη γιατρό σας — δημιουργήστε δωρεάν λογαριασμό.",
   mailSubject:"Αναφορά ημερολογίου ύπνου",
   mailBody:"Αγαπητή κυρία Παπαθεοδοσίου,\n\nΣας στέλνω συνημμένη την αναφορά του ημερολογίου ύπνου μου (PDF).\n\nΜε εκτίμηση",
   rHead:["Ημ/νία","Στο κρεβάτι","Προσπάθεια ύπνου","Λεπτά επέλευσης","Ξυπνήματα","Ξύπνιος/α (λεπτά)","Τελικό ξύπνημα","Έγερση","Συνολικός ύπνος","Αποδοτ.","Ποιότητα","Σχόλια"],
@@ -579,7 +581,14 @@ function bindToday(){
       $("formWarn").dataset.warned="1"; return;
     }
     const dateKey=$("f_date").value;
-    const all=entries(); all[dateKey]=e; save("csd_entries",all);
+    const all=entries();
+    if(!window.cloudUser && !(dateKey in all) && Object.keys(all).length>=1){   // guest may keep one day only
+      $("view").insertAdjacentHTML("afterbegin",`<div class="warnbox">${t.guestLimit}</div>`);
+      window.scrollTo(0,0);
+      if(window.cloudAuthClick) setTimeout(()=>window.cloudAuthClick(),500);     // offer sign-in
+      return;
+    }
+    all[dateKey]=e; save("csd_entries",all);
     if(window.cloudPushEntry) window.cloudPushEntry(dateKey, e);
     $("view").insertAdjacentHTML("afterbegin",`<div class="okbox">${t.saved}</div>`);
     setTimeout(()=>go("diary"),900);
