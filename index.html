@@ -393,7 +393,7 @@ const T = () => STR[lang];
 window.T = T; // expose for the cloud layer (login sheet reads window.T())
 
 /* ---------- storage ---------- */
-const load = k => JSON.parse(localStorage.getItem(k) || "null");
+const load = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch(e){ console.warn("corrupt "+k+", ignoring", e); return null; } };
 const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
 const entries = () => load("csd_entries") || {};
 const notes   = () => load("csd_notes")   || [];
@@ -408,7 +408,7 @@ function toMin(t){ if(!t) return null; const [h,m]=t.split(":").map(Number); ret
 function anchor(t){ const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); }
 function metrics(e){
   const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
-  const sol=Number(e.q3)||0, waso=Number(e.q5)||0;
+  const sol=Math.max(0,Number(e.q3)||0), waso=Math.max(0,Number(e.q5)||0);
   if(bed===null||outBed===null) return null;
   const tib = outBed - bed;
   const preSleep = (trySl!==null && trySl>=bed) ? trySl-bed : 0;
@@ -518,7 +518,8 @@ function confirmTime(id){
   let val;
   if($("typeMode").style.display!=="none"){
     val=$("typeInput").value;
-    if(!/^\d{2}:\d{2}$/.test(val)) return;
+    const mt=/^(\d{2}):(\d{2})$/.exec(val);
+    if(!mt || +mt[1]>23 || +mt[2]>59) return;   // reject impossible times (25:70)
   } else {
     const h12=Math.min(Math.round($("whH").scrollTop/WI), 11)+1;
     const m=Math.min(Math.round($("whM").scrollTop/WI), 1)*30;
