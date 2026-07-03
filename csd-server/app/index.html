@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ημερολόγιο Ύπνου — Sleep Diary</title>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#f9f5ee; --bg2:#e9e6f3; --card:#fffdf9; --ink:#3b3a52; --muted:#8d8a9c;
+    --accent:#2e3654; --accent-soft:#eceef7; --teal:#69b4ae; --good:#4a9a93; --warn:#b0763a;
+    --border:#efeae0; --radius:26px; --glow:0 10px 34px rgba(94,84,142,.10);
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{min-height:100%}
+  body{font-family:-apple-system,"SF Pro Rounded","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:17.5px; line-height:1.65; letter-spacing:.005em}
+  body::before{content:""; position:fixed; inset:0; z-index:-1;
+    background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%)}
+  .wrap{max-width:680px; margin:0 auto; padding:20px 18px 130px}
+  header{display:flex; align-items:center; justify-content:space-between; padding:16px 4px 20px}
+  header h1{font-size:1.35rem; font-weight:800; color:var(--accent); letter-spacing:.02em}
+  header .sub{font-size:.8rem; color:var(--muted)}
+  .langbtn{border:none; background:rgba(255,253,249,.85); border-radius:999px;
+    padding:8px 18px; font-size:.9rem; cursor:pointer; color:var(--accent);
+    box-shadow:0 4px 14px rgba(94,84,142,.12); font-weight:600}
+  .card{background:var(--card); border:none; border-radius:var(--radius);
+    padding:26px 24px; margin-bottom:18px; box-shadow:var(--glow);
+    animation:rise .5s cubic-bezier(.22,.8,.36,1)}
+  @keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+  .card h2{font-size:1.12rem; margin-bottom:6px; color:var(--accent); letter-spacing:.015em}
+  .card .hint{font-size:.88rem; color:var(--muted); margin-bottom:16px}
+  label{display:block; font-weight:650; margin:20px 0 8px; font-size:.98rem}
+  label .qnum{display:inline-block; background:var(--accent-soft); color:var(--accent);
+    border-radius:999px; padding:0 10px; margin-right:8px; font-size:.82rem}
+  input[type=time],input[type=number],input[type=date],input[type=email],input[type=text],select,textarea{
+    width:100%; padding:14px 16px; font-size:1.05rem; border:1.5px solid transparent;
+    border-radius:16px; background:#f5f1e9; color:var(--ink); transition:all .25s}
+  input:focus,textarea:focus{outline:none; border-color:var(--teal); background:#fffdf9;
+    box-shadow:0 0 0 4px rgba(105,180,174,.14)}
+  textarea{min-height:88px; resize:vertical}
+  .row{display:flex; gap:10px}
+  .row>*{flex:1}
+  .quality{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px}
+  .quality button{flex:1; min-width:92px; padding:12px 8px; border:1.5px solid transparent;
+    background:#f5f1e9; border-radius:999px; cursor:pointer; font-size:.9rem;
+    color:var(--ink); transition:all .25s}
+  .quality button.sel{border-color:var(--teal); background:var(--accent-soft); font-weight:700;
+    box-shadow:0 4px 12px rgba(105,180,174,.22)}
+  .btn{display:inline-block; width:100%; padding:16px; margin-top:20px; font-size:1.05rem;
+    font-weight:700; color:#fff; letter-spacing:.02em; cursor:pointer; border:none;
+    background:linear-gradient(135deg,#2e3654 0%,#48577d 100%); border-radius:999px;
+    box-shadow:0 10px 24px rgba(46,54,84,.28); transition:transform .2s, box-shadow .2s}
+  .btn.secondary{background:transparent; color:var(--accent); border:1.5px solid var(--teal);
+    margin-top:12px; box-shadow:none}
+  .btn:active{transform:scale(.98); box-shadow:0 4px 12px rgba(46,54,84,.2)}
+  nav{position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    width:min(560px, calc(100% - 24px)); background:rgba(255,253,249,.88);
+    backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.7); border-radius:999px;
+    box-shadow:0 14px 36px rgba(60,55,90,.18);
+    display:flex; justify-content:space-around; padding:8px; z-index:5}
+  nav button{background:none; border:none; font-size:.74rem; color:var(--muted); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:1px; padding:6px 12px;
+    border-radius:999px; transition:all .25s}
+  nav button.active{color:var(--accent); font-weight:700; background:var(--accent-soft)}
+  nav button .ico{font-size:1.3rem}
+  table{width:100%; border-collapse:collapse; font-size:.88rem}
+  th,td{padding:10px 6px; text-align:center; border-bottom:1px solid #f2eee6}
+  th{color:var(--muted); font-weight:600; font-size:.76rem; letter-spacing:.03em}
+  .metric-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-top:10px}
+  .metric{background:linear-gradient(145deg,#edeff8 0%,#e8f3f1 100%);
+    border-radius:20px; padding:16px 12px; text-align:center}
+  .metric .v{font-size:1.5rem; font-weight:800; color:var(--accent)}
+  .metric .l{font-size:.74rem; color:var(--muted)}
+  .warnbox{background:#fdf3e7; border:none; color:#7a5320; border-radius:16px;
+    padding:14px 16px; font-size:.9rem; margin-top:14px}
+  .okbox{background:#e8f3ef; border:none; color:#2c5e46; border-radius:16px;
+    padding:14px 16px; font-size:.95rem; margin-top:14px}
+  .note-entry{border-bottom:1px solid #f2eee6; padding:12px 0}
+  .note-entry .d{font-size:.78rem; color:var(--muted)}
+  .chip{display:inline-block; background:var(--accent-soft); color:var(--accent); border-radius:999px;
+    padding:5px 14px; font-size:.85rem; margin:3px 4px 3px 0}
+  .reminder{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #f2eee6}
+  .reminder input{width:23px; height:23px; accent-color:var(--teal)}
+  .reminder.done span{text-decoration:line-through; color:var(--muted)}
+  .small{font-size:.8rem; color:var(--muted); margin-top:10px}
+  svg text{font-family:inherit}
+  .footer-note{font-size:.72rem; color:var(--muted); text-align:center; margin-top:24px; line-height:1.5}
+  @media(max-width:480px){ body{font-size:16px} .row{flex-direction:column; gap:0} }
+  #splash{position:fixed; inset:0; background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%); z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:28px; opacity:0; transform:scale(.985);
+    animation:splashIn 1.7s cubic-bezier(.22,.6,.3,1) .15s forwards}
+  #splash.hide{animation:splashOut 1.5s cubic-bezier(.4,0,.2,1) forwards}
+  #splash .nm{font-size:1.3rem; font-weight:800; color:var(--accent); margin-top:18px}
+  #splash .nm span{font-weight:500}
+  #splash .ti{font-size:1.02rem; color:var(--accent); margin-top:4px}
+  #splash .af{font-size:.92rem; color:var(--teal); font-weight:600; margin-top:10px}
+  #splash .breathe{animation:breathe 3.2s ease-in-out infinite}
+  @keyframes splashIn{to{opacity:1; transform:scale(1)}}
+  @keyframes splashOut{0%{opacity:1; filter:blur(0)}
+    100%{opacity:0; filter:blur(14px); transform:scale(1.03); visibility:hidden}}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+  .timebtn{width:100%; padding:14px 22px; font-size:1.18rem; border:1.5px solid transparent;
+    border-radius:999px; background:#f5f1e9; color:var(--ink); text-align:left; cursor:pointer;
+    font-variant-numeric:tabular-nums; letter-spacing:.04em; transition:all .25s}
+  .timebtn:focus{outline:none; border-color:var(--teal); box-shadow:0 0 0 4px rgba(105,180,174,.14)}
+  .timebtn.empty{color:var(--muted)}
+  .sheet-ov{position:fixed; inset:0; background:rgba(40,38,60,.35); backdrop-filter:blur(5px);
+    -webkit-backdrop-filter:blur(5px); z-index:40; opacity:0; transition:opacity .3s ease;
+    display:flex; align-items:flex-end; justify-content:center}
+  .sheet-ov.show{opacity:1}
+  .sheet{position:relative; background:var(--card); border-radius:38px 38px 0 0; padding:24px 24px 32px;
+    width:min(480px,100%); box-shadow:0 -12px 44px rgba(60,55,90,.28);
+    transform:translateY(60px); transition:transform .38s cubic-bezier(.22,.8,.36,1)}
+  .sheet-ov.show .sheet{transform:none}
+  .typelink{position:absolute; top:16px; right:18px; z-index:2; border:none; cursor:pointer;
+    background:var(--accent-soft); color:var(--accent); border-radius:999px;
+    padding:7px 16px; font-size:.82rem; font-weight:700; letter-spacing:.03em}
+  .wlabels{display:flex; justify-content:center; gap:4px; margin:6px 0 2px}
+  .wlabels div{width:84px; text-align:center; font-size:.8rem; font-weight:700; color:var(--muted);
+    letter-spacing:.04em}
+  .wlabels .sep{width:14px}
+  .typewrap{height:202px; display:flex; flex-direction:column; justify-content:center; padding:0 8px}
+  .typewrap label{margin:0 0 10px; text-align:center; color:var(--muted); font-weight:600; font-size:.92rem}
+  .typewrap input{text-align:center; font-size:1.5rem; font-variant-numeric:tabular-nums}
+  .wheels{position:relative; display:flex; justify-content:center; gap:4px; height:200px}
+  .wheel{position:relative; z-index:1; width:84px; overflow-y:auto; padding:80px 0;
+    scroll-snap-type:y mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+    scroll-behavior:auto; overscroll-behavior:contain;
+    mask-image:linear-gradient(transparent, #000 28%, #000 72%, transparent);
+    -webkit-mask-image:linear-gradient(transparent, #000 28%, #000 72%, transparent)}
+  .wheel::-webkit-scrollbar{display:none}
+  .wi{height:40px; line-height:40px; text-align:center; font-size:1.4rem; color:var(--muted);
+    scroll-snap-align:center; font-variant-numeric:tabular-nums;
+    transition:color .18s, transform .18s, font-weight .18s}
+  .wi.on{color:var(--accent); font-weight:750; transform:scale(1.14)}
+  .wsep{align-self:center; font-size:1.4rem; font-weight:700; color:var(--accent); padding-bottom:4px}
+  .wheel-hl{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:0;
+    width:296px; height:44px; border-radius:999px; background:var(--accent-soft)}
+  .toast{position:fixed; bottom:104px; left:50%; transform:translateX(-50%) translateY(14px);
+    background:var(--accent); color:#fff; border-radius:999px; padding:12px 24px;
+    font-size:.95rem; font-weight:600; box-shadow:0 10px 30px rgba(46,54,84,.35);
+    z-index:60; opacity:0; transition:all .35s ease; max-width:88%; text-align:center}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  #printArea{display:none}
+  @media print{
+    #printArea{display:block!important}
+    .wrap, nav, #splash{display:none!important}
+    body{background:#fff!important}
+  }
+</style>
+</head>
+<body>
+<div id="splash">
+  <svg class="breathe" width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-label="ΠΠ">
+    <g fill="none" stroke-linecap="round">
+      <path d="M30 96 V40 a14 14 0 0 1 14-14 h20 a14 14 0 0 1 14 14 v14" stroke="#242b45" stroke-width="13"/>
+      <path d="M44 96 V64 a14 14 0 0 1 14-14 h18 a14 14 0 0 1 14 14 v32" stroke="#69b4ae" stroke-width="13" opacity=".92"/>
+    </g>
+  </svg>
+  <div class="nm">Πέρσα Παπαθεοδοσίου <span>MD MSc PhDc</span></div>
+  <div class="ti">Ψυχίατρος – Υπνίατρος</div>
+  <div class="af">Επιστημονική Συνεργάτις Αιγινήτειου Νοσοκομείου</div>
+</div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="appTitle"></h1>
+      <div class="sub" id="appSub"></div>
+    </div>
+    <button class="langbtn" id="langBtn" onclick="toggleLang()"></button>
+  </header>
+  <main id="view"></main>
+  <div class="footer-note" id="citeNote"></div>
+</div>
+
+<nav>
+  <button id="nav-today" onclick="go('today')"><span class="ico">🌅</span><span id="nt"></span></button>
+  <button id="nav-diary" onclick="go('diary')"><span class="ico">📖</span><span id="nd"></span></button>
+  <button id="nav-trends" onclick="go('trends')"><span class="ico">📈</span><span id="ntr"></span></button>
+  <button id="nav-notes" onclick="go('notes')"><span class="ico">🤍</span><span id="nn"></span></button>
+  <button id="nav-settings" onclick="go('settings')"><span class="ico">⚙️</span><span id="ns"></span></button>
+</nav>
+
+<script>
+"use strict";
+/* ============================================================
+   Consensus Sleep Diary — cloud patient app
+   CSD-Core © 2011 Carney, Buysse, Ancoli-Israel, Edinger,
+   Krystal, Lichstein & Morin. Free for not-for-profit use,
+   unaltered, citing Carney et al. 2012, SLEEP 35(2):287-302.
+   Greek item wording is provisional pending official translation.
+   ============================================================ */
+
+const STR = {
+ en: {
+  title:"Sleep Diary", sub:"Consensus Sleep Diary — Core",
+  navToday:"Today", navDiary:"Diary", navTrends:"Trends", navNotes:"Wellbeing", navSettings:"Settings",
+  morningTitle:"Good morning ☀️", morningHint:"Please answer about last night, ideally within an hour of getting up. Don't worry about exact times — your best estimate is perfect.",
+  dateLabel:"Today's date",
+  q1:"What time did you get into bed?",
+  q2:"What time did you try to go to sleep?",
+  q3:"How long did it take you to fall asleep?",
+  q4:"How many times did you wake up, not counting your final awakening?",
+  q5:"In total, how long did these awakenings last?",
+  q6:"What time was your final awakening?",
+  q7:"What time did you get out of bed for the day?",
+  q8:"How would you rate the quality of your sleep?",
+  q9:"Comments (if applicable)",
+  minutes:"minutes", times:"times",
+  quality:["Very poor","Poor","Fair","Good","Very good"],
+  save:"Save my night", saved:"Saved. Sleep well tonight 🤍",
+  alreadyDone:"You already filled in this morning's diary. You can edit it below.",
+  implausible:"Some answers look unusual (e.g. awake time longer than time in bed). You can still save — just check them once more.",
+  missingWarn:"Some key answers are empty (time into bed, time out of bed, or sleep quality). Press save again to keep it as is, or fill them in first.",
+  diaryTitle:"My diary", diaryHint:"Your last 14 nights. Blank days simply stay blank — that's okay.",
+  weekAvg:"7-night averages",
+  colDate:"Date", colTST:"Sleep", colSE:"Effic.", colSOL:"To fall asleep", colWASO:"Awake at night", colQ:"Quality",
+  noEntries:"No nights recorded yet. Fill in your first morning diary!",
+  trendsTitle:"My progress", trendsHint:"Watch the bigger picture, not single nights. Sleep naturally varies.",
+  seLine:"Sleep efficiency (%)", tstLine:"Total sleep (hours)",
+  needMore:"After 3 recorded nights your chart will appear here.",
+  notesTitle:"Daily notes & wellbeing", notesHint:"A short note each evening: how the day went, meals, caffeine, movement, worries. Your companion will gently look for patterns.",
+  notePlaceholder:"How was your day? (e.g. coffee at 6pm, evening walk, stressful meeting…)",
+  addNote:"Save note",
+  companionTitle:"Your companion 🤍",
+  remindersTitle:"Gentle reminders for today",
+  reminders:["No caffeine after 2 pm","Screens off 1 hour before bed","Light dinner, not too late","Some daylight & movement today","Wind-down routine before bed","Out of bed at the same time tomorrow"],
+  compNoData:"Once you have a few nights and notes, I'll reflect small patterns back to you here. Nothing medical — just a friendly mirror.",
+  compDisclaimer:"This companion never gives medical advice. Always follow the plan agreed with your doctor.",
+  settingsTitle:"Settings & my data",
+  sendDoctor:"Send report to my doctor",
+  downloadPdf:"Download my report (PDF)",
+  csvLink:"Export raw data (CSV)",
+  backupTitle:"A gentle reminder 🤍",
+  backupText:"It's been a little while since you saved a copy of your report. Shall I prepare one now? It only takes a second.",
+  backupNow:"Yes, save my report", backupLater:"Maybe later",
+  reportTitle:"Sleep Diary Report", reportPeriod:"Period", nightsWord:"nights recorded",
+  reportAvg:"Averages over the period",
+  rHead:["Date","To bed","Tried to sleep","Min to sleep","Awakenings","Awake (min)","Final wake","Out of bed","Total sleep","Effic.","Quality","Comments"],
+  erase:"Erase local data on this device", eraseConfirm:"Delete diary data stored on THIS device? Your account data on the server stays safe.",
+  privacyNote:"Your diary is stored securely and is visible only to you and your doctor.",
+  clinician:"Treating physician: Persa Papatheodosiou MD, MSc, PhDc — Psychiatrist, Sleep Medicine",
+  cite:"Diary items: Consensus Sleep Diary © 2011 Carney et al. Used unaltered, not-for-profit. Carney CE et al., SLEEP 2012;35(2):287-302. Greek wording provisional pending official translation.",
+  h:"h", min:"min", hourLbl:"Hour", minLbl:"Minutes",
+  am:"AM", pm:"PM", typeLbl:"⌨ Type", wheelLbl:"◷ Dial", typeHint:"Type the exact time",
+  account:"Signed in as", logout:"Sign out",
+  offlineMode:"Offline mode — entries stay only on this device until the app is connected.",
+  loginTitle:"Welcome 🤍", loginHint:"Enter your email and we'll send you a 6-digit sign-in code. No passwords.",
+  emailPh:"your email", sendCode:"Send my code",
+  codeSent:"We sent you a 6-digit code. Please check your email.",
+  verify:"Sign in", loginErr:"That code doesn't match. Please try again.",
+  sendingReport:"Sending your report to your doctor…",
+  sentOk:"Sent to your doctor 🤍", sentFail:"Could not send",
+  sumIntro:"Looking at your last week:",
+  sumSE:se=>`Average sleep efficiency ${se}%.`,
+  sumTrendUp:"Your sleep efficiency is gently improving — keep the rhythm going. 🌱",
+  sumTrendFlat:"Your sleep is holding steady. Consistency is quietly doing its work.",
+  sumTrendDown:"A few harder nights lately — that's normal and temporary. Stick with the plan.",
+  sumCaffeine:"I noticed caffeine appearing in your notes on harder nights — maybe worth mentioning to your doctor.",
+  sumStress:"Stressful days seem to show up in your notes before lighter nights. A longer wind-down on those evenings may help.",
+  editDay:"Edit this morning's entry"
+ },
+ el: {
+  title:"Ημερολόγιο Ύπνου", sub:"Consensus Sleep Diary — Βασικό",
+  navToday:"Σήμερα", navDiary:"Ημερολόγιο", navTrends:"Πορεία", navNotes:"Ευεξία", navSettings:"Ρυθμίσεις",
+  morningTitle:"Καλημέρα ☀️", morningHint:"Απαντήστε για χθες το βράδυ, ιδανικά μέσα σε μία ώρα από το ξύπνημα. Μην αγχώνεστε για ακριβείς ώρες — η καλύτερη εκτίμησή σας αρκεί.",
+  dateLabel:"Σημερινή ημερομηνία",
+  q1:"Τι ώρα μπήκατε στο κρεβάτι;",
+  q2:"Τι ώρα προσπαθήσατε να κοιμηθείτε;",
+  q3:"Πόση ώρα σας πήρε να αποκοιμηθείτε;",
+  q4:"Πόσες φορές ξυπνήσατε, χωρίς να υπολογίζετε το τελικό σας ξύπνημα;",
+  q5:"Συνολικά, πόσο διήρκεσαν αυτά τα ξυπνήματα;",
+  q6:"Τι ώρα ήταν το τελικό σας ξύπνημα;",
+  q7:"Τι ώρα σηκωθήκατε από το κρεβάτι για την ημέρα;",
+  q8:"Πώς θα βαθμολογούσατε την ποιότητα του ύπνου σας;",
+  q9:"Σχόλια (εάν υπάρχουν)",
+  minutes:"λεπτά", times:"φορές",
+  quality:["Πολύ κακή","Κακή","Μέτρια","Καλή","Πολύ καλή"],
+  save:"Αποθήκευση της νύχτας μου", saved:"Αποθηκεύτηκε. Καλό βράδυ απόψε 🤍",
+  alreadyDone:"Έχετε ήδη συμπληρώσει το σημερινό ημερολόγιο. Μπορείτε να το διορθώσετε παρακάτω.",
+  implausible:"Κάποιες απαντήσεις φαίνονται ασυνήθιστες (π.χ. ώρα αφύπνισης μεγαλύτερη από την ώρα στο κρεβάτι). Μπορείτε να αποθηκεύσετε — απλώς ελέγξτε τις ξανά.",
+  missingWarn:"Κάποιες βασικές απαντήσεις είναι κενές (ώρα στο κρεβάτι, ώρα έγερσης ή ποιότητα ύπνου). Πατήστε ξανά αποθήκευση για να μείνει ως έχει, ή συμπληρώστε τις πρώτα.",
+  diaryTitle:"Το ημερολόγιό μου", diaryHint:"Οι τελευταίες 14 νύχτες σας. Οι κενές μέρες μένουν κενές — δεν πειράζει.",
+  weekAvg:"Μέσοι όροι 7 νυχτών",
+  colDate:"Ημ/νία", colTST:"Ύπνος", colSE:"Αποδοτ.", colSOL:"Επέλευση", colWASO:"Αφύπνιση", colQ:"Ποιότητα",
+  noEntries:"Δεν έχουν καταγραφεί νύχτες ακόμη. Συμπληρώστε το πρώτο σας πρωινό ημερολόγιο!",
+  trendsTitle:"Η πορεία μου", trendsHint:"Κοιτάξτε τη μεγάλη εικόνα, όχι μεμονωμένες νύχτες. Ο ύπνος φυσιολογικά διακυμαίνεται.",
+  seLine:"Αποδοτικότητα ύπνου (%)", tstLine:"Συνολικός ύπνος (ώρες)",
+  needMore:"Μετά από 3 καταγεγραμμένες νύχτες θα εμφανιστεί εδώ το γράφημά σας.",
+  notesTitle:"Καθημερινές σημειώσεις & ευεξία", notesHint:"Μια σύντομη σημείωση κάθε βράδυ: πώς πήγε η μέρα, γεύματα, καφεΐνη, κίνηση, έγνοιες. Ο σύντροφός σας θα αναζητά διακριτικά μοτίβα.",
+  notePlaceholder:"Πώς ήταν η μέρα σας; (π.χ. καφές στις 6μμ, βραδινός περίπατος, αγχωτική συνάντηση…)",
+  addNote:"Αποθήκευση σημείωσης",
+  companionTitle:"Ο σύντροφός σας 🤍",
+  remindersTitle:"Απαλές υπενθυμίσεις για σήμερα",
+  reminders:["Όχι καφεΐνη μετά τις 2 μμ","Κλείσιμο οθονών 1 ώρα πριν τον ύπνο","Ελαφρύ βραδινό, όχι πολύ αργά","Λίγο φως ημέρας & κίνηση σήμερα","Ρουτίνα χαλάρωσης πριν το κρεβάτι","Έγερση την ίδια ώρα αύριο"],
+  compNoData:"Μόλις συγκεντρωθούν μερικές νύχτες και σημειώσεις, θα σας καθρεφτίζω εδώ μικρά μοτίβα. Τίποτα ιατρικό — απλώς ένας φιλικός καθρέφτης.",
+  compDisclaimer:"Ο σύντροφος δεν δίνει ποτέ ιατρικές συμβουλές. Ακολουθείτε πάντα το πλάνο που έχετε συμφωνήσει με τη γιατρό σας.",
+  settingsTitle:"Ρυθμίσεις & τα δεδομένα μου",
+  sendDoctor:"Αποστολή αναφοράς στη γιατρό μου",
+  downloadPdf:"Λήψη της αναφοράς μου (PDF)",
+  csvLink:"Εξαγωγή πρωτογενών δεδομένων (CSV)",
+  backupTitle:"Μια απαλή υπενθύμιση 🤍",
+  backupText:"Έχει περάσει λίγος καιρός από τότε που αποθηκεύσατε αντίγραφο της αναφοράς σας. Να ετοιμάσω ένα τώρα; Παίρνει μόνο ένα δευτερόλεπτο.",
+  backupNow:"Ναι, αποθήκευση αναφοράς", backupLater:"Ίσως αργότερα",
+  reportTitle:"Αναφορά Ημερολογίου Ύπνου", reportPeriod:"Περίοδος", nightsWord:"καταγεγραμμένες νύχτες",
+  reportAvg:"Μέσοι όροι περιόδου",
+  rHead:["Ημ/νία","Στο κρεβάτι","Προσπάθεια ύπνου","Λεπτά επέλευσης","Ξυπνήματα","Ξύπνιος/α (λεπτά)","Τελικό ξύπνημα","Έγερση","Συνολικός ύπνος","Αποδοτ.","Ποιότητα","Σχόλια"],
+  erase:"Διαγραφή τοπικών δεδομένων συσκευής", eraseConfirm:"Να διαγραφούν τα δεδομένα από ΑΥΤΗ τη συσκευή; Τα δεδομένα του λογαριασμού σας στον διακομιστή μένουν ασφαλή.",
+  privacyNote:"Το ημερολόγιό σας αποθηκεύεται με ασφάλεια και είναι ορατό μόνο σε εσάς και τη γιατρό σας.",
+  clinician:"Θεράπουσα ιατρός: Πέρσα Παπαθεοδοσίου MD, MSc, PhDc — Ψυχίατρος, Υπνίατρος",
+  cite:"Ερωτήματα: Consensus Sleep Diary © 2011 Carney et al. Χρήση αναλλοίωτη, μη κερδοσκοπική. Carney CE et al., SLEEP 2012;35(2):287-302. Η ελληνική απόδοση είναι προσωρινή έως την επίσημη μετάφραση.",
+  h:"ω", min:"λ", hourLbl:"Ώρα", minLbl:"Λεπτά",
+  am:"πμ", pm:"μμ", typeLbl:"⌨ Γράψτε", wheelLbl:"◷ Ρολόι", typeHint:"Γράψτε την ακριβή ώρα",
+  account:"Συνδεδεμένος/η ως", logout:"Αποσύνδεση",
+  offlineMode:"Λειτουργία χωρίς σύνδεση — οι καταχωρήσεις μένουν μόνο σε αυτή τη συσκευή μέχρι να συνδεθεί η εφαρμογή.",
+  loginTitle:"Καλώς ήρθατε 🤍", loginHint:"Γράψτε το email σας και θα σας στείλουμε έναν 6ψήφιο κωδικό εισόδου. Χωρίς κωδικούς πρόσβασης.",
+  emailPh:"το email σας", sendCode:"Αποστολή κωδικού",
+  codeSent:"Σας στείλαμε έναν 6ψήφιο κωδικό. Ελέγξτε το email σας.",
+  verify:"Είσοδος", loginErr:"Ο κωδικός δεν ταιριάζει. Δοκιμάστε ξανά.",
+  sendingReport:"Η αναφορά στέλνεται στη γιατρό σας…",
+  sentOk:"Εστάλη στη γιατρό σας 🤍", sentFail:"Δεν στάλθηκε",
+  sumIntro:"Κοιτάζοντας την τελευταία σας εβδομάδα:",
+  sumSE:se=>`Μέση αποδοτικότητα ύπνου ${se}%.`,
+  sumTrendUp:"Η αποδοτικότητα του ύπνου σας βελτιώνεται σιγά σιγά — συνεχίστε τον ρυθμό. 🌱",
+  sumTrendFlat:"Ο ύπνος σας κρατά σταθερή πορεία. Η συνέπεια δουλεύει αθόρυβα για εσάς.",
+  sumTrendDown:"Μερικές πιο δύσκολες νύχτες τελευταία — είναι φυσιολογικό και παροδικό. Μείνετε στο πλάνο.",
+  sumCaffeine:"Παρατήρησα καφεΐνη στις σημειώσεις σας σε πιο δύσκολες νύχτες — ίσως αξίζει να το αναφέρετε στη γιατρό σας.",
+  sumStress:"Οι αγχωτικές μέρες φαίνεται να προηγούνται πιο ελαφριών νυχτών. Ίσως βοηθά μεγαλύτερη χαλάρωση εκείνα τα βράδια.",
+  editDay:"Διόρθωση της σημερινής καταχώρησης"
+ }
+};
+
+let lang = localStorage.getItem("csd_lang") || "el";
+let view = "today";
+const T = () => STR[lang];
+
+/* ---------- storage ---------- */
+const load = k => JSON.parse(localStorage.getItem(k) || "null");
+const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+const entries = () => load("csd_entries") || {};
+const notes   = () => load("csd_notes")   || [];
+const remState= () => load("csd_rem")     || {};
+
+const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+
+/* ---------- scoring ---------- */
+function toMin(t){ if(!t) return null; const [h,m]=t.split(":").map(Number); return h*60+m; }
+function anchor(t){ const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); }
+function metrics(e){
+  const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
+  const sol=Number(e.q3)||0, waso=Number(e.q5)||0;
+  if(bed===null||outBed===null) return null;
+  const tib = outBed - bed;
+  const preSleep = (trySl!==null && trySl>=bed) ? trySl-bed : 0;
+  const terminal = (finalWake!==null && outBed>=finalWake) ? outBed-finalWake : 0;
+  let tst = tib - preSleep - sol - waso - terminal;
+  if(tst<0) tst=0;
+  const se = tib>0 ? Math.round(tst/tib*100) : null;
+  return {tib, tst, se, sol, waso};
+}
+const fmtDur = m => { if(m==null) return "—"; const h=Math.floor(m/60); return h+T().h+" "+String(m%60).padStart(2,"0")+T().min; };
+
+/* ---------- rendering ---------- */
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function render(){
+  const t=T();
+  document.documentElement.lang = lang;
+  $("appTitle").textContent=t.title; $("appSub").textContent=t.sub;
+  $("langBtn").textContent = lang==="el" ? "EN" : "ΕΛ";
+  $("nt").textContent=t.navToday; $("nd").textContent=t.navDiary; $("ntr").textContent=t.navTrends;
+  $("nn").textContent=t.navNotes; $("ns").textContent=t.navSettings;
+  $("citeNote").textContent=t.cite;
+  ["today","diary","trends","notes","settings"].forEach(v=>$("nav-"+v).classList.toggle("active", v===view));
+  const fns={today:vToday, diary:vDiary, trends:vTrends, notes:vNotes, settings:vSettings};
+  $("view").innerHTML = backupBanner() + fns[view]();
+  if(view==="today") bindToday();
+}
+function go(v){ view=v; if(v==="today") formDate=null; render(); window.scrollTo(0,0); }
+function toggleLang(){ lang = lang==="el"?"en":"el"; localStorage.setItem("csd_lang",lang); render(); }
+function toast(msg, ms=3000){
+  let el=$("toast"); if(el) el.remove();
+  el=document.createElement("div"); el.id="toast"; el.className="toast"; el.innerHTML=msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=>el.remove(),400); }, ms);
+}
+
+/* ---------- time wheel picker ---------- */
+const WI=40;
+function timeBtn(id, val){
+  return `<button type="button" class="timebtn ${val?"":"empty"}" id="${id}" data-v="${val}"
+    onclick="openTime('${id}')">${val||"—:—"}</button>`;
+}
+function openTime(id){
+  let ch=22, cm=0;
+  const cur=$(id).dataset.v||"";
+  if(/^\d{1,2}:\d{2}$/.test(cur)){ [ch,cm]=cur.split(":").map(Number); }
+  const rawM=cm;
+  cm = cm<15 ? 0 : cm<45 ? 30 : 0;
+  if(cm===0 && rawM>=45){ ch=(ch+1)%24; }
+  const h12=((ch+11)%12)+1, pm=ch>=12?1:0;
+  const t=T();
+  const ov=document.createElement("div"); ov.className="sheet-ov"; ov.id="sheetOv";
+  ov.innerHTML=`<div class="sheet">
+    <button type="button" class="typelink" id="typeToggle" onclick="toggleTypeMode()">${t.typeLbl}</button>
+    <div id="wheelMode">
+      <div class="wlabels"><div>${t.hourLbl}</div><div class="sep"></div><div>${t.minLbl}</div><div class="sep"></div><div>${t.am}/${t.pm}</div></div>
+      <div class="wheels">
+        <div class="wheel-hl"></div>
+        <div class="wheel" id="whH">${Array.from({length:12},(_,i)=>`<div class="wi">${i+1}</div>`).join("")}</div>
+        <div class="wsep">:</div>
+        <div class="wheel" id="whM">${[0,30].map(m=>`<div class="wi">${String(m).padStart(2,"0")}</div>`).join("")}</div>
+        <div class="wsep"></div>
+        <div class="wheel" id="whA"><div class="wi">${t.am}</div><div class="wi">${t.pm}</div></div>
+      </div>
+    </div>
+    <div id="typeMode" class="typewrap" style="display:none">
+      <label>${t.typeHint}</label>
+      <input type="time" id="typeInput" value="${cur}">
+    </div>
+    <button class="btn" style="margin-top:16px" onclick="confirmTime('${id}')">OK</button>
+  </div>`;
+  document.body.appendChild(ov);
+  wheelInit($("whH")); wheelInit($("whM")); wheelInit($("whA"));
+  $("whH").scrollTop=(h12-1)*WI; $("whM").scrollTop=(cm/30)*WI; $("whA").scrollTop=pm*WI;
+  requestAnimationFrame(()=>ov.classList.add("show"));
+  ov.addEventListener("click", e=>{ if(e.target===ov) closeSheet(); });
+}
+function toggleTypeMode(){
+  const t=T(), w=$("wheelMode"), ty=$("typeMode"), toTyping=ty.style.display==="none";
+  w.style.display=toTyping?"none":"";
+  ty.style.display=toTyping?"":"none";
+  $("typeToggle").textContent=toTyping?t.wheelLbl:t.typeLbl;
+  if(toTyping) $("typeInput").focus();
+}
+function wheelInit(el){
+  const upd=()=>{ const i=Math.round(el.scrollTop/WI);
+    [...el.children].forEach((c,j)=>c.classList.toggle("on", j===i)); };
+  el.addEventListener("scroll", ()=>requestAnimationFrame(upd));
+  let lastTick=0;
+  el.addEventListener("wheel", e=>{
+    e.preventDefault();
+    const now=Date.now(); if(now-lastTick<140) return; lastTick=now;
+    const max=(el.children.length-1)*WI;
+    const target=Math.max(0, Math.min(max, (Math.round(el.scrollTop/WI)+Math.sign(e.deltaY))*WI));
+    el.scrollTo({top:target, behavior:"smooth"});
+  }, {passive:false});
+  upd();
+}
+function closeSheet(){
+  const ov=$("sheetOv"); if(!ov) return;
+  ov.classList.remove("show"); setTimeout(()=>ov.remove(), 320);
+}
+function confirmTime(id){
+  let val;
+  if($("typeMode").style.display!=="none"){
+    val=$("typeInput").value;
+    if(!/^\d{2}:\d{2}$/.test(val)) return;
+  } else {
+    const h12=Math.min(Math.round($("whH").scrollTop/WI), 11)+1;
+    const m=Math.min(Math.round($("whM").scrollTop/WI), 1)*30;
+    const pm=Math.min(Math.round($("whA").scrollTop/WI), 1)===1;
+    const h24=(h12%12)+(pm?12:0);
+    val=String(h24).padStart(2,"0")+":"+String(m).padStart(2,"0");
+  }
+  const b=$(id); b.dataset.v=val; b.textContent=val; b.classList.remove("empty");
+  closeSheet();
+}
+
+/* ---------- Today (morning form) ---------- */
+let qualitySel = null;
+let formDate = null;
+function vToday(){
+  const t=T(), d=formDate||todayISO(), existing=entries()[d];
+  qualitySel = existing ? existing.q8 : null;
+  const v = (f,def="") => existing ? esc(existing[f] ?? def) : def;
+  return `
+  <div class="card">
+    <h2>${t.morningTitle}</h2>
+    <div class="hint">${t.morningHint}</div>
+    ${existing?`<div class="okbox">${t.alreadyDone}</div>`:""}
+    <label>${t.dateLabel}</label>
+    <input type="date" id="f_date" value="${d}" max="${todayISO()}"
+      onchange="formDate=this.value; render()">
+    <label><span class="qnum">1</span>${t.q1}</label>
+    ${timeBtn("f_q1", v("q1"))}
+    <label><span class="qnum">2</span>${t.q2}</label>
+    ${timeBtn("f_q2", v("q2"))}
+    <label><span class="qnum">3</span>${t.q3}</label>
+    <div class="row"><input type="number" id="f_q3" min="0" max="720" placeholder="${t.minutes}" value="${v("q3")}"></div>
+    <label><span class="qnum">4</span>${t.q4}</label>
+    <div class="row"><input type="number" id="f_q4" min="0" max="40" placeholder="${t.times}" value="${v("q4")}"></div>
+    <label><span class="qnum">5</span>${t.q5}</label>
+    <div class="row"><input type="number" id="f_q5" min="0" max="720" placeholder="${t.minutes}" value="${v("q5")}"></div>
+    <label><span class="qnum">6</span>${t.q6}</label>
+    ${timeBtn("f_q6", v("q6"))}
+    <label><span class="qnum">7</span>${t.q7}</label>
+    ${timeBtn("f_q7", v("q7"))}
+    <label><span class="qnum">8</span>${t.q8}</label>
+    <div class="quality" id="f_q8">
+      ${t.quality.map((q,i)=>`<button type="button" data-i="${i}" class="${qualitySel===i?"sel":""}">${q}</button>`).join("")}
+    </div>
+    <label><span class="qnum">9</span>${t.q9}</label>
+    <textarea id="f_q9">${v("q9")}</textarea>
+    <div id="formWarn"></div>
+    <button class="btn" id="saveBtn">${t.save}</button>
+  </div>`;
+}
+function bindToday(){
+  document.querySelectorAll("#f_q8 button").forEach(b=>{
+    b.onclick=()=>{ qualitySel=Number(b.dataset.i);
+      document.querySelectorAll("#f_q8 button").forEach(x=>x.classList.toggle("sel", x===b)); };
+  });
+  $("saveBtn").onclick=()=>{
+    const t=T();
+    const tv=id=>$(id).dataset.v||"";
+    const e={ q1:tv("f_q1"), q2:tv("f_q2"), q3:$("f_q3").value, q4:$("f_q4").value,
+              q5:$("f_q5").value, q6:tv("f_q6"), q7:tv("f_q7"), q8:qualitySel,
+              q9:$("f_q9").value.trim(), submittedAt:new Date().toISOString() };
+    const m=metrics(e);
+    const bad = m && (m.tst===0 || m.tib<=0 || m.tib>16*60);
+    const missing = !e.q1 || !e.q7 || e.q8==null;
+    if((bad||missing) && !$("formWarn").dataset.warned){
+      $("formWarn").innerHTML=`<div class="warnbox">${missing?t.missingWarn:t.implausible}</div>`;
+      $("formWarn").dataset.warned="1"; return;
+    }
+    const dateKey=$("f_date").value;
+    const all=entries(); all[dateKey]=e; save("csd_entries",all);
+    if(window.cloudPushEntry) window.cloudPushEntry(dateKey, e);
+    $("view").insertAdjacentHTML("afterbegin",`<div class="okbox">${t.saved}</div>`);
+    setTimeout(()=>go("diary"),900);
+  };
+}
+
+/* ---------- Diary ---------- */
+function lastNDays(n){
+  const out=[], d=new Date();
+  for(let i=0;i<n;i++){ const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    out.push(iso); d.setDate(d.getDate()-1); }
+  return out;
+}
+function vDiary(){
+  const t=T(), all=entries(), days=lastNDays(14);
+  const rows=days.map(d=>{
+    const e=all[d]; if(!e) return `<tr><td>${d.slice(5)}</td><td colspan="5" style="color:var(--muted)">—</td></tr>`;
+    const m=metrics(e);
+    return `<tr><td>${d.slice(5)}</td>
+      <td><b>${m?fmtDur(m.tst):"—"}</b></td>
+      <td>${m&&m.se!=null?m.se+"%":"—"}</td>
+      <td>${e.q3||0}${T().min}</td>
+      <td>${e.q5||0}${T().min}</td>
+      <td>${e.q8!=null?t.quality[e.q8]:"—"}</td></tr>`;
+  }).join("");
+  const week=days.slice(0,7).map(d=>all[d]).filter(Boolean).map(metrics).filter(Boolean);
+  let avg="";
+  if(week.length){
+    const a=f=>Math.round(week.reduce((s,m)=>s+m[f],0)/week.length);
+    avg=`<div class="card"><h2>${t.weekAvg}</h2><div class="metric-grid">
+      <div class="metric"><div class="v">${fmtDur(a("tst"))}</div><div class="l">${t.colTST}</div></div>
+      <div class="metric"><div class="v">${a("se")}%</div><div class="l">${t.seLine}</div></div>
+      <div class="metric"><div class="v">${a("sol")}${T().min}</div><div class="l">${t.colSOL}</div></div>
+      <div class="metric"><div class="v">${a("waso")}${T().min}</div><div class="l">${t.colWASO}</div></div>
+    </div></div>`;
+  }
+  const hasAny=Object.keys(all).length>0;
+  return avg+`<div class="card"><h2>${t.diaryTitle}</h2><div class="hint">${t.diaryHint}</div>
+    ${hasAny?`<table><tr><th>${t.colDate}</th><th>${t.colTST}</th><th>${t.colSE}</th><th>${t.colSOL}</th><th>${t.colWASO}</th><th>${t.colQ}</th></tr>${rows}</table>`
+            :`<div class="hint">${t.noEntries}</div>`}</div>`;
+}
+
+/* ---------- Trends ---------- */
+function vTrends(){
+  const t=T(), all=entries();
+  const days=lastNDays(14).reverse();
+  const pts=days.map(d=>({d, m: all[d]?metrics(all[d]):null})).filter(p=>p.m);
+  if(pts.length<3) return `<div class="card"><h2>${t.trendsTitle}</h2><div class="hint">${t.needMore}</div></div>`;
+  const W=620,H=240,P=40;
+  const x=i=>P+i*(W-2*P)/Math.max(pts.length-1,1);
+  const ySE=v=>H-P-(v/100)*(H-2*P);
+  const maxT=Math.max(...pts.map(p=>p.m.tst),480);
+  const yT=v=>H-P-(v/maxT)*(H-2*P);
+  const line=(fn,f)=>pts.map((p,i)=>(i?"L":"M")+x(i).toFixed(1)+","+fn(p.m[f]).toFixed(1)).join(" ");
+  const dots=(fn,f,c)=>pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${fn(p.m[f]).toFixed(1)}" r="4" fill="${c}"/>`).join("");
+  return `<div class="card"><h2>${t.trendsTitle}</h2><div class="hint">${t.trendsHint}</div>
+  <svg viewBox="0 0 ${W} ${H}" style="width:100%">
+    ${[0,25,50,75,100].map(v=>`<line x1="${P}" x2="${W-P}" y1="${ySE(v)}" y2="${ySE(v)}" stroke="#eee"/>
+      <text x="6" y="${ySE(v)+4}" font-size="10" fill="#999">${v}%</text>`).join("")}
+    <path d="${line(ySE,'se')}" fill="none" stroke="#4a5d8a" stroke-width="2.5"/>${dots(ySE,'se','#4a5d8a')}
+    <path d="${line(yT,'tst')}" fill="none" stroke="#3d7d5f" stroke-width="2" stroke-dasharray="5 4"/>${dots(yT,'tst','#3d7d5f')}
+    ${pts.map((p,i)=>i%2?"":`<text x="${x(i)}" y="${H-8}" font-size="9" fill="#999" text-anchor="middle">${p.d.slice(5)}</text>`).join("")}
+  </svg>
+  <div><span class="chip" style="color:#4a5d8a">— ${t.seLine}</span>
+       <span class="chip" style="color:#3d7d5f">- - ${t.tstLine}</span></div></div>`;
+}
+
+/* ---------- Wellbeing ---------- */
+function companionSummary(){
+  const t=T(), all=entries();
+  const week=lastNDays(7).map(d=>({d,e:all[d]})).filter(x=>x.e);
+  const ns=notes();
+  if(week.length<3 && ns.length<3) return `<div class="hint">${t.compNoData}</div>`;
+  const ms=week.map(x=>metrics(x.e)).filter(Boolean);
+  const out=[t.sumIntro];
+  if(ms.length>=3){
+    const se=Math.round(ms.reduce((s,m)=>s+m.se,0)/ms.length);
+    out.push(t.sumSE(se));
+    const half=Math.floor(ms.length/2);
+    const early=ms.slice(half).reduce((s,m)=>s+m.se,0)/(ms.length-half);
+    const late =ms.slice(0,half).reduce((s,m)=>s+m.se,0)/half;
+    out.push(late-early>3 ? t.sumTrendUp : early-late>3 ? t.sumTrendDown : t.sumTrendFlat);
+  }
+  const txt=ns.slice(-7).map(n=>n.text.toLowerCase()).join(" ");
+  if(/καφ|caffe|coffee|coke|energy/.test(txt)) out.push(t.sumCaffeine);
+  if(/άγχο|αγχ|stress|anxi|worr/.test(txt)) out.push(t.sumStress);
+  return "<p>"+out.map(esc).join("</p><p>")+"</p>";
+}
+function vNotes(){
+  const t=T(), d=todayISO();
+  const rs=remState()[d] || t.reminders.map(()=>false);
+  const remHTML=t.reminders.map((r,i)=>`
+    <div class="reminder ${rs[i]?"done":""}">
+      <input type="checkbox" ${rs[i]?"checked":""} onchange="toggleRem(${i})"><span>${r}</span>
+    </div>`).join("");
+  const list=notes().slice(-5).reverse().map(n=>`
+    <div class="note-entry"><div class="d">${n.date}</div>${esc(n.text)}</div>`).join("");
+  return `
+  <div class="card"><h2>${t.companionTitle}</h2>${companionSummary()}
+    <div class="small">${t.compDisclaimer}</div></div>
+  <div class="card"><h2>${t.remindersTitle}</h2>${remHTML}</div>
+  <div class="card"><h2>${t.notesTitle}</h2><div class="hint">${t.notesHint}</div>
+    <textarea id="noteText" placeholder="${t.notePlaceholder}"></textarea>
+    <button class="btn" onclick="addNote()">${t.addNote}</button>
+    ${list}</div>`;
+}
+function toggleRem(i){
+  const d=todayISO(), all=remState();
+  const rs=all[d] || T().reminders.map(()=>false);
+  rs[i]=!rs[i]; all[d]=rs; save("csd_rem",all); render();
+}
+function addNote(){
+  const txt=$("noteText").value.trim(); if(!txt) return;
+  const n={date:todayISO(), text:txt};
+  const ns=notes(); ns.push(n); save("csd_notes",ns);
+  if(window.cloudPushNote) window.cloudPushNote(n);
+  render();
+}
+
+/* ---------- Settings ---------- */
+function vSettings(){
+  const t=T();
+  const acct=window.cloudUser
+    ? `<div class="okbox" style="margin-top:8px">${t.account}: <b>${esc(window.cloudUser.email||"")}</b></div>`
+    : `<div class="warnbox" style="margin-top:8px">${t.offlineMode}</div>`;
+  return `<div class="card"><h2>${t.settingsTitle}</h2>
+    <div class="hint">${t.clinician}</div>
+    ${acct}
+    <button class="btn" onclick="sendToDoctor()">${t.sendDoctor}</button>
+    <button class="btn secondary" onclick="downloadReport()">${t.downloadPdf}</button>
+    ${window.cloudUser?`<button class="btn secondary" onclick="cloudLogout()">${t.logout}</button>`:""}
+    <div class="small">${t.privacyNote}</div>
+    <div style="text-align:center;margin-top:26px">
+      <a href="#" onclick="exportCSV();return false"
+         style="font-size:.75rem;color:var(--muted);text-decoration:underline;margin-right:18px">${t.csvLink}</a>
+      <a href="#" onclick="eraseAll();return false"
+         style="font-size:.75rem;color:var(--muted);text-decoration:underline">${t.erase}</a>
+    </div></div>`;
+}
+async function sendToDoctor(){
+  const t=T();
+  if(!window.cloudSend){ downloadReport(); return; }
+  toast(t.sendingReport, 60000);
+  const r=await window.cloudSend();
+  toast(r.ok ? t.sentOk : (t.sentFail+(r.error?": "+esc(r.error):"")), r.ok?4000:8000);
+  if(r.ok) markSaved();
+}
+function dl(name, mime, content){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([content],{type:mime})); a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvContent(){
+  const all=entries();
+  const head="date,bed_time_q1,try_sleep_q2,sol_min_q3,awakenings_q4,waso_min_q5,final_wake_q6,out_of_bed_q7,quality_0to4_q8,comments_q9,TIB_min,TST_min,SE_pct,submitted_at";
+  const rows=Object.keys(all).sort().map(d=>{
+    const e=all[d], m=metrics(e)||{};
+    const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
+    return [d,e.q1,e.q2,e.q3,e.q4,e.q5,e.q6,e.q7,e.q8,q(e.q9),m.tib??"",m.tst??"",m.se??"",e.submittedAt||""].join(",");
+  });
+  return "﻿"+head+"\n"+rows.join("\n");
+}
+function exportCSV(){ dl("sleep-diary-export.csv","text/csv;charset=utf-8",csvContent()); }
+
+/* ---------- client-side PDF (personal copy) ---------- */
+function reportHTML(){
+  const t=T(), all=entries(), keys=Object.keys(all).sort();
+  const ms=keys.map(d=>metrics(all[d])).filter(Boolean);
+  const avg=f=>ms.length?Math.round(ms.reduce((s,m)=>s+m[f],0)/ms.length):null;
+  const rows=keys.map(d=>{ const e=all[d], m=metrics(e)||{};
+    return `<tr>
+      <td>${d}</td><td>${e.q1||""}</td><td>${e.q2||""}</td><td>${e.q3||0}</td>
+      <td>${e.q4||0}</td><td>${e.q5||0}</td><td>${e.q6||""}</td><td>${e.q7||""}</td>
+      <td>${m.tst!=null?fmtDur(m.tst):""}</td><td>${m.se!=null?m.se+"%":""}</td>
+      <td>${e.q8!=null?t.quality[e.q8]:""}</td><td style="text-align:left">${esc(e.q9||"")}</td></tr>`;
+  }).join("");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#242b45;padding:10px 4px;font-size:10.5px;line-height:1.45">
+    <div style="border-bottom:2.5px solid #69b4ae;padding-bottom:8px;margin-bottom:12px">
+      <div style="font-size:15px;font-weight:bold">Πέρσα Παπαθεοδοσίου MD MSc PhDc</div>
+      <div style="font-size:11px">Ψυχίατρος – Υπνίατρος · Επιστημονική Συνεργάτις Αιγινήτειου Νοσοκομείου</div>
+    </div>
+    <div style="font-size:14px;font-weight:bold;margin-bottom:4px">${t.reportTitle}</div>
+    <div style="margin-bottom:10px">${t.reportPeriod}: ${keys[0]||"—"} → ${keys[keys.length-1]||"—"} · ${keys.length} ${t.nightsWord}</div>
+    ${ms.length?`<div style="background:#eef4f3;border-radius:8px;padding:8px 12px;margin-bottom:12px">
+      <b>${t.reportAvg}:</b>
+      TST ${fmtDur(avg("tst"))} · SE ${avg("se")}% · SOL ${avg("sol")} min · WASO ${avg("waso")} min</div>`:""}
+    <table style="width:100%;border-collapse:collapse;font-size:9.5px">
+      <tr>${t.rHead.map(h=>`<th style="border:1px solid #c9d4d2;background:#eef4f3;padding:4px 3px">${h}</th>`).join("")}</tr>
+      ${rows.replace(/<td/g,'<td style="border:1px solid #dbe3e1;padding:4px 3px;text-align:center"')}
+    </table>
+    <div style="font-size:8px;color:#8a8a94;margin-top:12px">${t.cite}</div>
+  </div>`;
+}
+let _h2p=null;
+function ensureHtml2pdf(){
+  if(window.html2pdf) return Promise.resolve();
+  if(!_h2p) _h2p=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    s.onload=res; s.onerror=()=>{_h2p=null; rej(new Error("cdn"));};
+    document.head.appendChild(s);
+  });
+  return _h2p;
+}
+async function reportPdfBlob(){
+  await ensureHtml2pdf();
+  const el=document.createElement("div");
+  el.style.cssText="position:absolute;left:0;top:0;width:780px;background:#fff;z-index:-2000";
+  el.innerHTML=reportHTML(); document.body.prepend(el);
+  try{
+    const blob=await html2pdf().set({
+      margin:[10,8,12,8],
+      html2canvas:{scale:2, scrollX:0, scrollY:0, windowWidth:820, useCORS:true},
+      jsPDF:{unit:"mm", format:"a4", orientation:"portrait"},
+      pagebreak:{mode:["css","legacy"]}
+    }).from(el).outputPdf("blob");
+    if(!blob || blob.size<8000) throw new Error("blank pdf");
+    return blob;
+  } finally { el.remove(); }
+}
+function printFallback(){
+  let pa=document.getElementById("printArea");
+  if(!pa){ pa=document.createElement("div"); pa.id="printArea"; document.body.appendChild(pa); }
+  pa.innerHTML=reportHTML();
+  window.print();
+}
+function markSaved(){ save("csd_last_backup", todayISO()); save("csd_backup_snooze", null); }
+async function downloadReport(){
+  try{
+    const b=await reportPdfBlob();
+    const a=document.createElement("a"); a.href=URL.createObjectURL(b);
+    a.download="sleep-report.pdf"; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ printFallback(); }
+  markSaved();
+  const bb=$("backupBanner"); if(bb) bb.remove();
+}
+function eraseAll(){
+  if(confirm(T().eraseConfirm)){ ["csd_entries","csd_notes","csd_rem","csd_last_backup","csd_backup_snooze"].forEach(k=>localStorage.removeItem(k)); render(); }
+}
+
+/* ---------- gentle backup prompt ---------- */
+function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+function backupBanner(){
+  const t=T(), n=Object.keys(entries()).length;
+  if(n<3) return "";
+  const last=load("csd_last_backup"), snooze=load("csd_backup_snooze"), today=todayISO();
+  if(last && daysBetween(last,today)<7) return "";
+  if(snooze && daysBetween(snooze,today)<2) return "";
+  return `<div class="card" id="backupBanner" style="background:var(--accent-soft)">
+    <h2>${t.backupTitle}</h2><div class="hint" style="margin-bottom:10px">${t.backupText}</div>
+    <div class="row">
+      <button class="btn" style="margin-top:0" onclick="downloadReport()">${t.backupNow}</button>
+      <button class="btn secondary" style="margin-top:0" onclick="save('csd_backup_snooze',todayISO());render()">${t.backupLater}</button>
+    </div></div>`;
+}
+
+render();
+
+setTimeout(()=>{ const s=$("splash"); if(s){ s.classList.add("hide"); setTimeout(()=>s.remove(), 1550); } }, 2700);
+document.getElementById("splash").addEventListener("click", function(){ this.classList.add("hide"); setTimeout(()=>this.remove(), 1550); });
+/* end of core app */
+</script>
+
+<script type="module">
+/* ============ cloud layer: Supabase auth + sync + one-tap send ============ */
+const cfg = window.CSD_CONFIG || {};
+const configured = cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && !String(cfg.SUPABASE_URL).includes("PASTE");
+if (configured) {
+  try {
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+    async function pushEntry(date, e) {
+      const { data: { user } } = await sb.auth.getUser(); if (!user) return;
+      await sb.from("entries").upsert({
+        user_id: user.id, date,
+        q1: e.q1 || null, q2: e.q2 || null, q3: String(e.q3 ?? ""), q4: String(e.q4 ?? ""),
+        q5: String(e.q5 ?? ""), q6: e.q6 || null, q7: e.q7 || null,
+        q8: e.q8 ?? null, q9: e.q9 || null, submitted_at: e.submittedAt || new Date().toISOString(),
+      }, { onConflict: "user_id,date" });
+    }
+    async function pullAll() {
+      const { data: rows } = await sb.from("entries").select("*").order("date");
+      const all = JSON.parse(localStorage.getItem("csd_entries") || "{}");
+      const remoteDates = new Set();
+      (rows || []).forEach(r => {
+        remoteDates.add(r.date);
+        all[r.date] = { q1: r.q1 || "", q2: r.q2 || "", q3: r.q3 || "", q4: r.q4 || "",
+          q5: r.q5 || "", q6: r.q6 || "", q7: r.q7 || "", q8: r.q8, q9: r.q9 || "",
+          submittedAt: r.submitted_at };
+      });
+      localStorage.setItem("csd_entries", JSON.stringify(all));
+      for (const [d, e] of Object.entries(all)) if (!remoteDates.has(d)) pushEntry(d, e);
+      window.render();
+    }
+    window.cloudPushEntry = pushEntry;
+    window.cloudPushNote = async n => {
+      const { data: { user } } = await sb.auth.getUser();
+      if (user) await sb.from("notes").insert({ user_id: user.id, date: n.date, text: n.text });
+    };
+    window.cloudSend = async () => {
+      try {
+        const { data, error } = await sb.functions.invoke("send-report");
+        if (error) return { ok: false, error: error.message };
+        if (data && data.error) return { ok: false, error: data.error };
+        return { ok: true };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    };
+    window.cloudLogout = async () => { await sb.auth.signOut(); location.reload(); };
+
+    function showLogin() {
+      const t = window.T();
+      const ov = document.createElement("div"); ov.className = "sheet-ov show"; ov.id = "loginOv";
+      ov.style.alignItems = "center"; ov.style.zIndex = "45";
+      ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
+        <h2 style="color:var(--accent);margin-bottom:6px">${t.loginTitle}</h2>
+        <div class="hint">${t.loginHint}</div>
+        <div id="stepEmail">
+          <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email">
+          <button class="btn" id="liSend">${t.sendCode}</button>
+        </div>
+        <div id="stepCode" style="display:none">
+          <div class="okbox" id="liMsg" style="margin-top:0"></div>
+          <input type="text" id="liCode" inputmode="numeric" maxlength="6" placeholder="123456"
+            style="text-align:center;font-size:1.4rem;letter-spacing:.3em;margin-top:12px">
+          <button class="btn" id="liVerify">${t.verify}</button>
+        </div>
+        <div class="small" id="liErr" style="color:#a33"></div>
+      </div>`;
+      document.body.appendChild(ov);
+      const g = id => document.getElementById(id);
+      g("liSend").onclick = async () => {
+        const email = g("liEmail").value.trim(); if (!email) return;
+        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+        if (error) { g("liErr").textContent = error.message; return; }
+        g("stepEmail").style.display = "none";
+        g("stepCode").style.display = "";
+        g("liMsg").textContent = t.codeSent;
+        g("liCode").focus();
+      };
+      g("liVerify").onclick = async () => {
+        const email = g("liEmail").value.trim();
+        const token = g("liCode").value.trim();
+        const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+        if (error) { g("liErr").textContent = t.loginErr; return; }
+        ov.remove(); ready();
+      };
+    }
+    async function ready() {
+      const { data: { user } } = await sb.auth.getUser();
+      window.cloudUser = user;
+      window.render();
+      pullAll();
+    }
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) ready();
+    else setTimeout(showLogin, 3400); /* let the splash breathe first */
+  } catch (e) {
+    console.warn("cloud layer unavailable:", e);
+  }
+}
+</script>
+</body>
+</html>
