@@ -714,7 +714,7 @@ function vSettings(){
 }
 async function sendToDoctor(){
   const t=T();
-  if(!Object.keys(entries()).length){ toast(t.noDataYet, 4500); return; }
+  if(!Object.values(entries()).some(e=>metrics(e))){ toast(t.noDataYet, 4500); return; }  // need at least one night with usable times
   const clearToast=()=>{ const el=$("toast"); if(el){ el.classList.remove("show"); setTimeout(()=>el.remove(),300); } };
   toast(t.preparing, 60000);
   let blob=null;
@@ -822,7 +822,7 @@ async function reportPdfBlob(){
       jsPDF:{unit:"mm", format:"a4", orientation:"portrait"},
       pagebreak:{mode:["css","legacy"]}
     }).from(el).outputPdf("blob");
-    if(!blob || blob.size<8000) throw new Error("blank pdf");
+    if(!blob || blob.size<4000) throw new Error("blank pdf");
     return blob;
   } finally { el.remove(); }
 }
@@ -834,6 +834,7 @@ function printFallback(){
 }
 function markSaved(){ save("csd_last_backup", todayISO()); save("csd_backup_snooze", null); }
 async function downloadReport(){
+  if(!Object.values(entries()).some(e=>metrics(e))){ toast(T().noDataYet, 4500); return; }
   try{
     const b=await reportPdfBlob();
     const a=document.createElement("a"); a.href=URL.createObjectURL(b);
