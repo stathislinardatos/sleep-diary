@@ -33,7 +33,7 @@
   label{display:block; font-weight:650; margin:20px 0 8px; font-size:.98rem}
   label .qnum{display:inline-block; background:var(--accent-soft); color:var(--accent);
     border-radius:999px; padding:0 10px; margin-right:8px; font-size:.82rem}
-  input[type=time],input[type=number],input[type=date],input[type=email],input[type=text],select,textarea{
+  input[type=time],input[type=number],input[type=date],input[type=email],input[type=text],input[type=password],select,textarea{
     width:100%; padding:14px 16px; font-size:1.05rem; border:1.5px solid transparent;
     border-radius:16px; background:#f5f1e9; color:var(--ink); transition:all .25s}
   input:focus,textarea:focus{outline:none; border-color:var(--teal); background:#fffdf9;
@@ -248,10 +248,20 @@ const STR = {
   am:"AM", pm:"PM", typeLbl:"⌨ Type", wheelLbl:"◷ Dial", typeHint:"Type the exact time",
   account:"Signed in as", logout:"Sign out",
   offlineMode:"Offline mode — entries stay only on this device until the app is connected.",
-  loginTitle:"Welcome 🤍", loginHint:"Enter your email and we'll send you a 6-digit sign-in code. No passwords.",
-  emailPh:"your email", sendCode:"Send my code",
-  codeSent:"We sent you a 6-digit code. Please check your email.",
-  verify:"Sign in", loginErr:"That code doesn't match. Please try again.",
+  loginTitle:"Welcome 🤍",
+  loginHint:"Sign in with your email and password.",
+  signupHint:"Create an account so your diary is saved securely and shared only with your doctor.",
+  emailPh:"your email", pwPh:"your password",
+  signIn:"Sign in", createAccount:"Create account",
+  toSignup:"New here? Create an account", toSignin:"Already have an account? Sign in",
+  forgotPw:"Forgot your password?",
+  needBoth:"Please enter your email and password.",
+  pwTooShort:"Please use a password of at least 6 characters.",
+  badCreds:"Email or password is not correct. Please try again.",
+  confirmSent:"Almost there — we've emailed you a link to confirm your account. Open it, then sign in.",
+  resetSent:"If that email has an account, we've sent a link to reset the password. Please check your inbox.",
+  newPwTitle:"Set a new password", newPwPh:"your new password", savePw:"Save new password",
+  pwUpdated:"Your password is saved and you're signed in. 🤍",
   sendingReport:"Sending your report to your doctor…",
   sentOk:"Sent to your doctor 🤍", sentFail:"Could not send",
   sumIntro:"Looking at your last week:",
@@ -316,10 +326,20 @@ const STR = {
   am:"πμ", pm:"μμ", typeLbl:"⌨ Γράψτε", wheelLbl:"◷ Ρολόι", typeHint:"Γράψτε την ακριβή ώρα",
   account:"Συνδεδεμένος/η ως", logout:"Αποσύνδεση",
   offlineMode:"Λειτουργία χωρίς σύνδεση — οι καταχωρήσεις μένουν μόνο σε αυτή τη συσκευή μέχρι να συνδεθεί η εφαρμογή.",
-  loginTitle:"Καλώς ήρθατε 🤍", loginHint:"Γράψτε το email σας και θα σας στείλουμε έναν 6ψήφιο κωδικό εισόδου. Χωρίς κωδικούς πρόσβασης.",
-  emailPh:"το email σας", sendCode:"Αποστολή κωδικού",
-  codeSent:"Σας στείλαμε έναν 6ψήφιο κωδικό. Ελέγξτε το email σας.",
-  verify:"Είσοδος", loginErr:"Ο κωδικός δεν ταιριάζει. Δοκιμάστε ξανά.",
+  loginTitle:"Καλώς ήρθατε 🤍",
+  loginHint:"Συνδεθείτε με το email και τον κωδικό σας.",
+  signupHint:"Δημιουργήστε λογαριασμό ώστε το ημερολόγιό σας να αποθηκεύεται με ασφάλεια και να το βλέπει μόνο η γιατρός σας.",
+  emailPh:"το email σας", pwPh:"ο κωδικός σας",
+  signIn:"Είσοδος", createAccount:"Δημιουργία λογαριασμού",
+  toSignup:"Νέος/α εδώ; Δημιουργήστε λογαριασμό", toSignin:"Έχετε ήδη λογαριασμό; Συνδεθείτε",
+  forgotPw:"Ξεχάσατε τον κωδικό σας;",
+  needBoth:"Συμπληρώστε το email και τον κωδικό σας.",
+  pwTooShort:"Χρησιμοποιήστε κωδικό τουλάχιστον 6 χαρακτήρων.",
+  badCreds:"Το email ή ο κωδικός δεν είναι σωστά. Δοκιμάστε ξανά.",
+  confirmSent:"Σχεδόν τελειώσατε — σας στείλαμε email με σύνδεσμο επιβεβαίωσης. Ανοίξτε τον και μετά συνδεθείτε.",
+  resetSent:"Αν αυτό το email έχει λογαριασμό, σας στείλαμε σύνδεσμο επαναφοράς κωδικού. Ελέγξτε τα εισερχόμενά σας.",
+  newPwTitle:"Ορίστε νέο κωδικό", newPwPh:"ο νέος σας κωδικός", savePw:"Αποθήκευση νέου κωδικού",
+  pwUpdated:"Ο κωδικός σας αποθηκεύτηκε και συνδεθήκατε. 🤍",
   sendingReport:"Η αναφορά στέλνεται στη γιατρό σας…",
   sentOk:"Εστάλη στη γιατρό σας 🤍", sentFail:"Δεν στάλθηκε",
   sumIntro:"Κοιτάζοντας την τελευταία σας εβδομάδα:",
@@ -842,42 +862,91 @@ if (configured) {
     };
     window.cloudLogout = async () => { await sb.auth.signOut(); location.reload(); };
 
+    let authMode = "signin"; // "signin" | "signup"
     function showLogin() {
+      if (document.getElementById("loginOv")) return;
       const t = window.T();
       const ov = document.createElement("div"); ov.className = "sheet-ov show"; ov.id = "loginOv";
       ov.style.alignItems = "center"; ov.style.zIndex = "45";
+      const g = id => document.getElementById(id);
+      const setMsg = (id, text) => { const m = g(id); m.textContent = text || ""; m.style.display = text ? "" : "none"; };
+      function paint() {
+        const signup = authMode === "signup";
+        ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
+          <h2 style="color:var(--accent);margin-bottom:6px">${t.loginTitle}</h2>
+          <div class="hint">${signup ? t.signupHint : t.loginHint}</div>
+          <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email" inputmode="email">
+          <input type="password" id="liPw" placeholder="${t.pwPh}" style="margin-top:12px"
+            autocomplete="${signup ? "new-password" : "current-password"}">
+          <button class="btn" id="liGo">${signup ? t.createAccount : t.signIn}</button>
+          <div class="okbox" id="liMsg" style="margin-top:12px;display:none"></div>
+          <div class="small" id="liErr" style="color:#a33;margin-top:8px"></div>
+          <div style="text-align:center;margin-top:16px">
+            <a href="#" id="liToggle" style="color:var(--accent);text-decoration:underline;font-size:.9rem">${signup ? t.toSignin : t.toSignup}</a>
+          </div>
+          ${signup ? "" : `<div style="text-align:center;margin-top:10px">
+            <a href="#" id="liForgot" style="color:var(--muted);text-decoration:underline;font-size:.82rem">${t.forgotPw}</a></div>`}
+        </div>`;
+        wire();
+      }
+      function wire() {
+        g("liToggle").onclick = e => { e.preventDefault(); authMode = authMode === "signup" ? "signin" : "signup"; paint(); };
+        const fg = g("liForgot");
+        if (fg) fg.onclick = async e => {
+          e.preventDefault();
+          const email = g("liEmail").value.trim();
+          if (!email) { g("liErr").textContent = t.needBoth; return; }
+          g("liErr").textContent = "";
+          await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+          setMsg("liMsg", t.resetSent); // deliberately generic — never reveals whether the email exists
+        };
+        g("liGo").onclick = async () => {
+          const email = g("liEmail").value.trim();
+          const pw = g("liPw").value;
+          g("liErr").textContent = ""; setMsg("liMsg", "");
+          if (!email || !pw) { g("liErr").textContent = t.needBoth; return; }
+          if (authMode === "signup" && pw.length < 6) { g("liErr").textContent = t.pwTooShort; return; }
+          g("liGo").disabled = true;
+          try {
+            if (authMode === "signup") {
+              const { data, error } = await sb.auth.signUp({ email, password: pw });
+              if (error) { g("liErr").textContent = error.message; return; }
+              if (data.session) { ov.remove(); ready(); }   // email confirmation OFF -> straight in
+              else setMsg("liMsg", t.confirmSent);           // email confirmation ON  -> check inbox
+            } else {
+              const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+              if (error) { g("liErr").textContent = t.badCreds; return; }
+              ov.remove(); ready();
+            }
+          } finally { g("liGo").disabled = false; }
+        };
+      }
+      document.body.appendChild(ov);
+      paint();
+    }
+    function showSetPassword() {
+      if (document.getElementById("setPwOv")) return;
+      const t = window.T();
+      const lo = document.getElementById("loginOv"); if (lo) lo.remove();
+      const ov = document.createElement("div"); ov.className = "sheet-ov show"; ov.id = "setPwOv";
+      ov.style.alignItems = "center"; ov.style.zIndex = "46";
       ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
-        <h2 style="color:var(--accent);margin-bottom:6px">${t.loginTitle}</h2>
-        <div class="hint">${t.loginHint}</div>
-        <div id="stepEmail">
-          <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email">
-          <button class="btn" id="liSend">${t.sendCode}</button>
-        </div>
-        <div id="stepCode" style="display:none">
-          <div class="okbox" id="liMsg" style="margin-top:0"></div>
-          <input type="text" id="liCode" inputmode="numeric" maxlength="6" placeholder="123456"
-            style="text-align:center;font-size:1.4rem;letter-spacing:.3em;margin-top:12px">
-          <button class="btn" id="liVerify">${t.verify}</button>
-        </div>
-        <div class="small" id="liErr" style="color:#a33"></div>
+        <h2 style="color:var(--accent);margin-bottom:6px">${t.newPwTitle}</h2>
+        <input type="password" id="npPw" placeholder="${t.newPwPh}" autocomplete="new-password">
+        <button class="btn" id="npGo">${t.savePw}</button>
+        <div class="small" id="npErr" style="color:#a33;margin-top:8px"></div>
       </div>`;
       document.body.appendChild(ov);
       const g = id => document.getElementById(id);
-      g("liSend").onclick = async () => {
-        const email = g("liEmail").value.trim(); if (!email) return;
-        const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
-        if (error) { g("liErr").textContent = error.message; return; }
-        g("stepEmail").style.display = "none";
-        g("stepCode").style.display = "";
-        g("liMsg").textContent = t.codeSent;
-        g("liCode").focus();
-      };
-      g("liVerify").onclick = async () => {
-        const email = g("liEmail").value.trim();
-        const token = g("liCode").value.trim();
-        const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
-        if (error) { g("liErr").textContent = t.loginErr; return; }
-        ov.remove(); ready();
+      g("npGo").onclick = async () => {
+        const pw = g("npPw").value;
+        if (pw.length < 6) { g("npErr").textContent = t.pwTooShort; return; }
+        g("npGo").disabled = true;
+        const { error } = await sb.auth.updateUser({ password: pw });
+        g("npGo").disabled = false;
+        if (error) { g("npErr").textContent = error.message; return; }
+        history.replaceState(null, "", location.pathname + location.search); // drop the recovery token
+        ov.remove(); toast(t.pwUpdated); ready();
       };
     }
     async function ready() {
@@ -886,9 +955,14 @@ if (configured) {
       window.render();
       pullAll();
     }
+    sb.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") showSetPassword(); // fired when the app opens from a reset link
+    });
+    const isRecovery = location.hash.includes("type=recovery");
     const { data: { session } } = await sb.auth.getSession();
-    if (session) ready();
-    else setTimeout(showLogin, 3400); /* let the splash breathe first */
+    if (isRecovery) showSetPassword();      // let them set a new password, don't just log them in
+    else if (session) ready();
+    else setTimeout(showLogin, 3400);        /* let the splash breathe first */
   } catch (e) {
     console.warn("cloud layer unavailable:", e);
   }
