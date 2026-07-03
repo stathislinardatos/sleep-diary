@@ -245,6 +245,11 @@ const STR = {
   backupNow:"Yes, save my report", backupLater:"Maybe later",
   reportTitle:"Sleep Diary Report", reportPeriod:"Period", nightsWord:"nights recorded",
   reportAvg:"Averages over the period",
+  patientLabel:"Patient",
+  mTSTsub:"Avg total sleep", mSEsub:"Avg efficiency", mSOLsub:"Avg time to fall asleep", mWASOsub:"Avg awake at night",
+  legend:"TST = total sleep · SE = sleep efficiency · SOL = time to fall asleep · WASO = time awake during the night",
+  preparing:"Preparing your report…", pdfReady:"Your report is ready as a PDF 🤍",
+  shareText:"My sleep diary report", noDataYet:"Add at least one night before creating a report.",
   rHead:["Date","To bed","Tried to sleep","Min to sleep","Awakenings","Awake (min)","Final wake","Out of bed","Total sleep","Effic.","Quality","Comments"],
   erase:"Erase local data on this device", eraseConfirm:"Delete diary data stored on THIS device? Your account data on the server stays safe.",
   privacyNote:"Your diary is stored securely and is visible only to you and your doctor.",
@@ -324,6 +329,11 @@ const STR = {
   backupNow:"Ναι, αποθήκευση αναφοράς", backupLater:"Ίσως αργότερα",
   reportTitle:"Αναφορά Ημερολογίου Ύπνου", reportPeriod:"Περίοδος", nightsWord:"καταγεγραμμένες νύχτες",
   reportAvg:"Μέσοι όροι περιόδου",
+  patientLabel:"Ασθενής",
+  mTSTsub:"Μέσος συνολικός ύπνος", mSEsub:"Μέση αποδοτικότητα", mSOLsub:"Μέσος χρόνος επέλευσης", mWASOsub:"Μέσος χρόνος ξύπνιου",
+  legend:"TST = συνολικός ύπνος · SE = αποδοτικότητα ύπνου · SOL = χρόνος επέλευσης ύπνου · WASO = χρόνος ξύπνιου μέσα στη νύχτα",
+  preparing:"Ετοιμάζεται η αναφορά σας…", pdfReady:"Η αναφορά σας είναι έτοιμη ως PDF 🤍",
+  shareText:"Η αναφορά του ημερολογίου ύπνου μου", noDataYet:"Προσθέστε τουλάχιστον μία νύχτα πριν δημιουργήσετε αναφορά.",
   rHead:["Ημ/νία","Στο κρεβάτι","Προσπάθεια ύπνου","Λεπτά επέλευσης","Ξυπνήματα","Ξύπνιος/α (λεπτά)","Τελικό ξύπνημα","Έγερση","Συνολικός ύπνος","Αποδοτ.","Ποιότητα","Σχόλια"],
   erase:"Διαγραφή τοπικών δεδομένων συσκευής", eraseConfirm:"Να διαγραφούν τα δεδομένα από ΑΥΤΗ τη συσκευή; Τα δεδομένα του λογαριασμού σας στον διακομιστή μένουν ασφαλή.",
   privacyNote:"Το ημερολόγιό σας αποθηκεύεται με ασφάλεια και είναι ορατό μόνο σε εσάς και τη γιατρό σας.",
@@ -704,11 +714,22 @@ function vSettings(){
 }
 async function sendToDoctor(){
   const t=T();
-  if(!window.cloudSend){ downloadReport(); return; }
-  toast(t.sendingReport, 60000);
-  const r=await window.cloudSend();
-  if(r.ok){ toast(t.sentOk, 4000); markSaved(); }
-  else { console.warn("send-report failed:", r.error); toast(t.sentFallback, 8000); downloadReport(); }
+  if(!Object.keys(entries()).length){ toast(t.noDataYet, 4500); return; }
+  const clearToast=()=>{ const el=$("toast"); if(el){ el.classList.remove("show"); setTimeout(()=>el.remove(),300); } };
+  toast(t.preparing, 60000);
+  let blob=null;
+  try{ blob=await reportPdfBlob(); }catch(e){}
+  if(!blob){ clearToast(); printFallback(); markSaved(); return; }  // last-ditch: browser print dialog
+  const file=new File([blob],"sleep-report.pdf",{type:"application/pdf"});
+  // Phone: open the share sheet with the PDF attached (Mail, Gmail, WhatsApp, Viber…)
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:t.reportTitle, text:t.shareText}); clearToast(); markSaved(); return; }
+    catch(err){ if(err && err.name==="AbortError"){ clearToast(); return; } }  // user cancelled the share
+  }
+  // Desktop / no share support: download the PDF and open the mail app to attach it
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sleep-report.pdf"; a.click(); URL.revokeObjectURL(a.href);
+  clearToast(); toast(t.pdfReady, 6000); markSaved();
+  location.href="mailto:?subject="+encodeURIComponent(t.reportTitle);
 }
 function dl(name, mime, content){
   const a=document.createElement("a");
@@ -732,28 +753,50 @@ function reportHTML(){
   const t=T(), all=entries(), keys=Object.keys(all).sort();
   const ms=keys.map(d=>metrics(all[d])).filter(Boolean);
   const avg=f=>ms.length?Math.round(ms.reduce((s,m)=>s+m[f],0)/ms.length):null;
-  const rows=keys.map(d=>{ const e=all[d], m=metrics(e)||{};
-    return `<tr>
-      <td>${d}</td><td>${e.q1||""}</td><td>${e.q2||""}</td><td>${e.q3||0}</td>
-      <td>${e.q4||0}</td><td>${e.q5||0}</td><td>${e.q6||""}</td><td>${e.q7||""}</td>
-      <td>${m.tst!=null?fmtDur(m.tst):""}</td><td>${m.se!=null?m.se+"%":""}</td>
-      <td>${e.q8!=null?t.quality[e.q8]:""}</td><td style="text-align:left">${esc(e.q9||"")}</td></tr>`;
+  const who=(window.cloudUser&&window.cloudUser.email)?`${t.patientLabel}: <b>${esc(window.cloudUser.email)}</b> &nbsp;·&nbsp; `:"";
+
+  const card=(abbr,val,sub)=>`<td style="width:25%;background:#f4f8f7;border:1px solid #d9e6e3;border-radius:14px;padding:14px 8px;text-align:center;vertical-align:top">
+      <div style="font-size:10px;letter-spacing:.1em;color:#4c9a91;font-weight:700">${abbr}</div>
+      <div style="font-size:23px;font-weight:700;color:#242b45;margin:3px 0 1px">${val}</div>
+      <div style="font-size:8.5px;color:#6b7080">${sub}</div></td>`;
+
+  const zebra=keys.map((d,i)=>{ const e=all[d], m=metrics(e)||{};
+    const bg=i%2?"#f7faf9":"#ffffff";
+    const cell=(v,al="center")=>`<td style="border-bottom:1px solid #e7eeec;padding:5px 4px;text-align:${al}">${v}</td>`;
+    return `<tr style="background:${bg};page-break-inside:avoid">
+      ${cell(d)}${cell(e.q1||"—")}${cell(e.q2||"—")}${cell(e.q3||0)}${cell(e.q4||0)}${cell(e.q5||0)}
+      ${cell(e.q6||"—")}${cell(e.q7||"—")}${cell(m.tst!=null?fmtDur(m.tst):"—")}
+      ${cell(m.se!=null?m.se+"%":"—")}${cell(e.q8!=null?t.quality[e.q8]:"—")}${cell(esc(e.q9||""),"left")}</tr>`;
   }).join("");
-  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#242b45;padding:10px 4px;font-size:10.5px;line-height:1.45">
-    <div style="border-bottom:2.5px solid #69b4ae;padding-bottom:8px;margin-bottom:12px">
-      <div style="font-size:15px;font-weight:bold">Πέρσα Παπαθεοδοσίου MD MSc PhDc</div>
-      <div style="font-size:11px">Ψυχίατρος – Υπνίατρος · Επιστημονική Συνεργάτις Αιγινήτειου Νοσοκομείου</div>
-    </div>
-    <div style="font-size:14px;font-weight:bold;margin-bottom:4px">${t.reportTitle}</div>
-    <div style="margin-bottom:10px">${t.reportPeriod}: ${keys[0]||"—"} → ${keys[keys.length-1]||"—"} · ${keys.length} ${t.nightsWord}</div>
-    ${ms.length?`<div style="background:#eef4f3;border-radius:8px;padding:8px 12px;margin-bottom:12px">
-      <b>${t.reportAvg}:</b>
-      TST ${fmtDur(avg("tst"))} · SE ${avg("se")}% · SOL ${avg("sol")} min · WASO ${avg("waso")} min</div>`:""}
-    <table style="width:100%;border-collapse:collapse;font-size:9.5px">
-      <tr>${t.rHead.map(h=>`<th style="border:1px solid #c9d4d2;background:#eef4f3;padding:4px 3px">${h}</th>`).join("")}</tr>
-      ${rows.replace(/<td/g,'<td style="border:1px solid #dbe3e1;padding:4px 3px;text-align:center"')}
+
+  return `<div style="font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#242b45;background:#fff;padding:6px 2px;font-size:10.5px;line-height:1.45">
+    <table style="width:100%;border-collapse:collapse;border-bottom:3px solid #69b4ae"><tr>
+      <td style="vertical-align:middle;padding-bottom:10px">
+        <div style="font-size:19px;font-weight:700">Πέρσα Παπαθεοδοσίου <span style="font-weight:400;font-size:13px;color:#5b6070">MD MSc PhDc</span></div>
+        <div style="font-size:11px;color:#5b6070;margin-top:2px">Ψυχίατρος – Υπνίατρος · Επιστημονική Συνεργάτις Αιγινήτειου Νοσοκομείου</div>
+      </td>
+      <td style="width:52px;text-align:right;vertical-align:middle;padding-bottom:10px">
+        <div style="width:46px;height:46px;border-radius:13px;background:#242b45;color:#fff;text-align:center;line-height:46px;font-size:19px;font-weight:700;letter-spacing:1px;display:inline-block">ΠΠ</div>
+      </td>
+    </tr></table>
+
+    <div style="font-size:16px;font-weight:700;margin:16px 0 3px">${t.reportTitle}</div>
+    <div style="font-size:11px;color:#5b6070;margin-bottom:16px">${who}${t.reportPeriod}: ${keys[0]||"—"} → ${keys[keys.length-1]||"—"} &nbsp;·&nbsp; ${keys.length} ${t.nightsWord}</div>
+
+    ${ms.length?`<table style="width:100%;border-collapse:separate;border-spacing:9px 0;margin-bottom:18px"><tr>
+      ${card("TST", fmtDur(avg("tst")), t.mTSTsub)}
+      ${card("SE", avg("se")+"%", t.mSEsub)}
+      ${card("SOL", avg("sol")+"′", t.mSOLsub)}
+      ${card("WASO", avg("waso")+"′", t.mWASOsub)}
+    </tr></table>`:""}
+
+    <table style="width:100%;border-collapse:collapse;font-size:9px">
+      <tr>${t.rHead.map((h,i)=>`<th style="background:#242b45;color:#fff;padding:6px 4px;text-align:${i===11?"left":"center"};font-weight:600;${i===0?"border-radius:8px 0 0 0":""}${i===11?"border-radius:0 8px 0 0":""}">${h}</th>`).join("")}</tr>
+      ${zebra}
     </table>
-    <div style="font-size:8px;color:#8a8a94;margin-top:12px">${t.cite}</div>
+
+    <div style="font-size:8.5px;color:#6b7080;margin-top:12px;background:#f6f5f1;border-radius:8px;padding:7px 10px">${t.legend}</div>
+    <div style="font-size:7.5px;color:#9a9aa4;margin-top:10px;border-top:1px solid #e6e6ee;padding-top:7px">${t.cite}</div>
   </div>`;
 }
 let _h2p=null;
