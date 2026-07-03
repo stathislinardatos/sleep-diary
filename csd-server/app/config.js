@@ -5,6 +5,6 @@
    2. "anon public" key   -> SUPABASE_ANON_KEY
    ============================================================ */
 window.CSD_CONFIG = {
-  SUPABASE_URL: "PASTE_YOUR_PROJECT_URL_HERE",
-  SUPABASE_ANON_KEY: "PASTE_YOUR_ANON_KEY_HERE"
+  SUPABASE_URL: "https://khifufzabxjballchzsr.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_uM8MnH1MDp3yNhdxESQKog_hKK1x98t"
 };

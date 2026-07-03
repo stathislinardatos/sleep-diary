@@ -356,6 +356,7 @@ const STR = {
 let lang = localStorage.getItem("csd_lang") || "el";
 let view = "today";
 const T = () => STR[lang];
+window.T = T; // expose for the cloud layer (login sheet reads window.T())
 
 /* ---------- storage ---------- */
 const load = k => JSON.parse(localStorage.getItem(k) || "null");
