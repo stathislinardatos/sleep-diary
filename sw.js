@@ -1,5 +1,5 @@
 /* Sleep Diary service worker — app shell cache, offline-friendly */
-const CACHE = "csd-v1";
+const CACHE = "csd-v2";
 
 self.addEventListener("install", e => {
   e.waitUntil(
@@ -17,9 +17,21 @@ self.addEventListener("activate", e => {
   );
 });
 
-/* stale-while-revalidate: serve from cache instantly, refresh in background */
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+
+  /* Page loads: network-first so app updates show immediately; fall back to
+     cache (the app shell) when offline. */
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request)
+        .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
+        .catch(() => caches.match(e.request).then(hit => hit || caches.match("./")))
+    );
+    return;
+  }
+
+  /* Other assets: stale-while-revalidate — instant from cache, refresh in background. */
   e.respondWith(
     caches.open(CACHE).then(async c => {
       const hit = await c.match(e.request);

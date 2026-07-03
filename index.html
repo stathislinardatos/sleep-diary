@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ημερολόγιο Ύπνου — Sleep Diary</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2e3654">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="config.js"></script>
 <style>
   :root{
     --bg:#f9f5ee; --bg2:#e9e6f3; --card:#fffdf9; --ink:#3b3a52; --muted:#8d8a9c;
@@ -14,7 +18,6 @@
   html{min-height:100%}
   body{font-family:-apple-system,"SF Pro Rounded","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
     background:var(--bg); color:var(--ink); font-size:17.5px; line-height:1.65; letter-spacing:.005em}
-  /* gradient on its own fixed layer = buttery scrolling (background-attachment:fixed causes jank) */
   body::before{content:""; position:fixed; inset:0; z-index:-1;
     background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%)}
   .wrap{max-width:680px; margin:0 auto; padding:20px 18px 130px}
@@ -33,7 +36,7 @@
   label{display:block; font-weight:650; margin:20px 0 8px; font-size:.98rem}
   label .qnum{display:inline-block; background:var(--accent-soft); color:var(--accent);
     border-radius:999px; padding:0 10px; margin-right:8px; font-size:.82rem}
-  input[type=time],input[type=number],input[type=date],input[type=email],select,textarea{
+  input[type=time],input[type=number],input[type=date],input[type=email],input[type=text],input[type=password],select,textarea{
     width:100%; padding:14px 16px; font-size:1.05rem; border:1.5px solid transparent;
     border-radius:16px; background:#f5f1e9; color:var(--ink); transition:all .25s}
   input:focus,textarea:focus{outline:none; border-color:var(--teal); background:#fffdf9;
@@ -88,7 +91,6 @@
   svg text{font-family:inherit}
   .footer-note{font-size:.72rem; color:var(--muted); text-align:center; margin-top:24px; line-height:1.5}
   @media(max-width:480px){ body{font-size:16px} .row{flex-direction:column; gap:0} }
-  /* ---- gentle splash before the menu ---- */
   #splash{position:fixed; inset:0; background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%); z-index:50;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; padding:28px; opacity:0; transform:scale(.985);
@@ -103,7 +105,6 @@
   @keyframes splashOut{0%{opacity:1; filter:blur(0)}
     100%{opacity:0; filter:blur(14px); transform:scale(1.03); visibility:hidden}}
   @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
-  /* ---- Apple-style time wheel ---- */
   .timebtn{width:100%; padding:14px 22px; font-size:1.18rem; border:1.5px solid transparent;
     border-radius:999px; background:#f5f1e9; color:var(--ink); text-align:left; cursor:pointer;
     font-variant-numeric:tabular-nums; letter-spacing:.04em; transition:all .25s}
@@ -141,7 +142,11 @@
   .wsep{align-self:center; font-size:1.4rem; font-weight:700; color:var(--accent); padding-bottom:4px}
   .wheel-hl{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:0;
     width:296px; height:44px; border-radius:999px; background:var(--accent-soft)}
-  /* ---- print-to-PDF fallback: only the report prints ---- */
+  .toast{position:fixed; bottom:104px; left:50%; transform:translateX(-50%) translateY(14px);
+    background:var(--accent); color:#fff; border-radius:999px; padding:12px 24px;
+    font-size:.95rem; font-weight:600; box-shadow:0 10px 30px rgba(46,54,84,.35);
+    z-index:60; opacity:0; transition:all .35s ease; max-width:88%; text-align:center}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
   #printArea{display:none}
   @media print{
     #printArea{display:block!important}
@@ -152,8 +157,6 @@
 </head>
 <body>
 <div id="splash">
-  <!-- To use the real logo file instead: replace this SVG with
-       <img src="logo.png" style="max-width:300px"> or a data: URI -->
   <svg class="breathe" width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" aria-label="ΠΠ">
     <g fill="none" stroke-linecap="round">
       <path d="M30 96 V40 a14 14 0 0 1 14-14 h20 a14 14 0 0 1 14 14 v14" stroke="#242b45" stroke-width="13"/>
@@ -187,12 +190,11 @@
 <script>
 "use strict";
 /* ============================================================
-   Consensus Sleep Diary — patient web app (prototype)
+   Consensus Sleep Diary — cloud patient app
    CSD-Core © 2011 Carney, Buysse, Ancoli-Israel, Edinger,
    Krystal, Lichstein & Morin. Free for not-for-profit use,
    unaltered, citing Carney et al. 2012, SLEEP 35(2):287-302.
-   NOTE: Greek item wording is a provisional translation for
-   prototyping — request the official Greek CSD before clinical use.
+   Greek item wording is provisional pending official translation.
    ============================================================ */
 
 const STR = {
@@ -210,7 +212,7 @@ const STR = {
   q7:"What time did you get out of bed for the day?",
   q8:"How would you rate the quality of your sleep?",
   q9:"Comments (if applicable)",
-  minutes:"minutes", times:"times",
+  minutes:"minutes", times:"times", minEg:"in minutes — e.g. 20",
   quality:["Very poor","Poor","Fair","Good","Very good"],
   save:"Save my night", saved:"Saved. Sleep well tonight 🤍",
   alreadyDone:"You already filled in this morning's diary. You can edit it below.",
@@ -232,27 +234,40 @@ const STR = {
   compNoData:"Once you have a few nights and notes, I'll reflect small patterns back to you here. Nothing medical — just a friendly mirror.",
   compDisclaimer:"This companion never gives medical advice. Always follow the plan agreed with your doctor.",
   settingsTitle:"Settings & my data",
-  doctorEmail:"My doctor's email", doctorEmailPh:"e.g. doctor@example.com",
   sendDoctor:"Send report to my doctor",
-  emailSubject:"Sleep diary report",
-  emailBody:"Dear Dr. Papatheodosiou,\n\nPlease find attached my sleep diary report (PDF).\n\nKind regards",
-  needEmail:"Please enter your doctor's email first.",
-  pdfSavedAttach:"Your report was saved as \"sleep-report.pdf\". Your email app is opening — please attach it before sending. 🤍",
   downloadPdf:"Download my report (PDF)",
   csvLink:"Export raw data (CSV)",
-  pdfError:"The PDF couldn't be created automatically (perhaps no internet). A print view will open instead — choose \"Save as PDF\".",
   backupTitle:"A gentle reminder 🤍",
   backupText:"It's been a little while since you saved a copy of your report. Shall I prepare one now? It only takes a second.",
   backupNow:"Yes, save my report", backupLater:"Maybe later",
   reportTitle:"Sleep Diary Report", reportPeriod:"Period", nightsWord:"nights recorded",
   reportAvg:"Averages over the period",
   rHead:["Date","To bed","Tried to sleep","Min to sleep","Awakenings","Awake (min)","Final wake","Out of bed","Total sleep","Effic.","Quality","Comments"],
-  erase:"Erase all my data", eraseConfirm:"Delete ALL diary data from this device? This cannot be undone.",
-  privacyNote:"All data stays only on this device (browser storage). Nothing is sent anywhere automatically. Bring the PDF report to your appointment.",
+  erase:"Erase local data on this device", eraseConfirm:"Delete diary data stored on THIS device? Your account data on the server stays safe.",
+  privacyNote:"Your diary is stored securely and is visible only to you and your doctor.",
   clinician:"Treating physician: Persa Papatheodosiou MD, MSc, PhDc — Psychiatrist, Sleep Medicine",
   cite:"Diary items: Consensus Sleep Diary © 2011 Carney et al. Used unaltered, not-for-profit. Carney CE et al., SLEEP 2012;35(2):287-302. Greek wording provisional pending official translation.",
   h:"h", min:"min", hourLbl:"Hour", minLbl:"Minutes",
   am:"AM", pm:"PM", typeLbl:"⌨ Type", wheelLbl:"◷ Dial", typeHint:"Type the exact time",
+  account:"Signed in as", logout:"Sign out",
+  offlineMode:"Offline mode — entries stay only on this device until the app is connected.",
+  loginTitle:"Welcome 🤍",
+  loginHint:"Sign in with your email and password.",
+  signupHint:"Create an account so your diary is saved securely and shared only with your doctor.",
+  emailPh:"your email", pwPh:"your password",
+  signIn:"Sign in", createAccount:"Create account",
+  toSignup:"New here? Create an account", toSignin:"Already have an account? Sign in",
+  forgotPw:"Forgot your password?",
+  needBoth:"Please enter your email and password.",
+  pwTooShort:"Please use a password of at least 6 characters.",
+  badCreds:"Email or password is not correct. Please try again.",
+  confirmSent:"Almost there — we've emailed you a link to confirm your account. Open it, then sign in.",
+  resetSent:"If that email has an account, we've sent a link to reset the password. Please check your inbox.",
+  newPwTitle:"Set a new password", newPwPh:"your new password", savePw:"Save new password",
+  pwUpdated:"Your password is saved and you're signed in. 🤍",
+  sendingReport:"Sending your report to your doctor…",
+  sentOk:"Sent to your doctor 🤍", sentFail:"Could not send",
+  sentFallback:"Couldn't send automatically — your report was downloaded as a PDF you can email to your doctor.",
   sumIntro:"Looking at your last week:",
   sumSE:se=>`Average sleep efficiency ${se}%.`,
   sumTrendUp:"Your sleep efficiency is gently improving — keep the rhythm going. 🌱",
@@ -276,7 +291,7 @@ const STR = {
   q7:"Τι ώρα σηκωθήκατε από το κρεβάτι για την ημέρα;",
   q8:"Πώς θα βαθμολογούσατε την ποιότητα του ύπνου σας;",
   q9:"Σχόλια (εάν υπάρχουν)",
-  minutes:"λεπτά", times:"φορές",
+  minutes:"λεπτά", times:"φορές", minEg:"σε λεπτά — π.χ. 20",
   quality:["Πολύ κακή","Κακή","Μέτρια","Καλή","Πολύ καλή"],
   save:"Αποθήκευση της νύχτας μου", saved:"Αποθηκεύτηκε. Καλό βράδυ απόψε 🤍",
   alreadyDone:"Έχετε ήδη συμπληρώσει το σημερινό ημερολόγιο. Μπορείτε να το διορθώσετε παρακάτω.",
@@ -298,27 +313,40 @@ const STR = {
   compNoData:"Μόλις συγκεντρωθούν μερικές νύχτες και σημειώσεις, θα σας καθρεφτίζω εδώ μικρά μοτίβα. Τίποτα ιατρικό — απλώς ένας φιλικός καθρέφτης.",
   compDisclaimer:"Ο σύντροφος δεν δίνει ποτέ ιατρικές συμβουλές. Ακολουθείτε πάντα το πλάνο που έχετε συμφωνήσει με τη γιατρό σας.",
   settingsTitle:"Ρυθμίσεις & τα δεδομένα μου",
-  doctorEmail:"Email της γιατρού μου", doctorEmailPh:"π.χ. doctor@example.com",
   sendDoctor:"Αποστολή αναφοράς στη γιατρό μου",
-  emailSubject:"Αναφορά ημερολογίου ύπνου",
-  emailBody:"Αγαπητή κυρία Παπαθεοδοσίου,\n\nΣας στέλνω συνημμένη την αναφορά του ημερολογίου ύπνου μου (PDF).\n\nΜε εκτίμηση",
-  needEmail:"Παρακαλώ συμπληρώστε πρώτα το email της γιατρού σας.",
-  pdfSavedAttach:"Η αναφορά αποθηκεύτηκε ως «sleep-report.pdf». Ανοίγει η εφαρμογή email — επισυνάψτε την πριν την αποστολή. 🤍",
   downloadPdf:"Λήψη της αναφοράς μου (PDF)",
   csvLink:"Εξαγωγή πρωτογενών δεδομένων (CSV)",
-  pdfError:"Δεν ήταν δυνατή η αυτόματη δημιουργία PDF (ίσως χωρίς σύνδεση). Θα ανοίξει προβολή εκτύπωσης — επιλέξτε «Αποθήκευση ως PDF».",
   backupTitle:"Μια απαλή υπενθύμιση 🤍",
   backupText:"Έχει περάσει λίγος καιρός από τότε που αποθηκεύσατε αντίγραφο της αναφοράς σας. Να ετοιμάσω ένα τώρα; Παίρνει μόνο ένα δευτερόλεπτο.",
   backupNow:"Ναι, αποθήκευση αναφοράς", backupLater:"Ίσως αργότερα",
   reportTitle:"Αναφορά Ημερολογίου Ύπνου", reportPeriod:"Περίοδος", nightsWord:"καταγεγραμμένες νύχτες",
   reportAvg:"Μέσοι όροι περιόδου",
   rHead:["Ημ/νία","Στο κρεβάτι","Προσπάθεια ύπνου","Λεπτά επέλευσης","Ξυπνήματα","Ξύπνιος/α (λεπτά)","Τελικό ξύπνημα","Έγερση","Συνολικός ύπνος","Αποδοτ.","Ποιότητα","Σχόλια"],
-  erase:"Διαγραφή όλων των δεδομένων μου", eraseConfirm:"Να διαγραφούν ΟΛΑ τα δεδομένα από αυτή τη συσκευή; Δεν αναιρείται.",
-  privacyNote:"Όλα τα δεδομένα μένουν μόνο σε αυτή τη συσκευή (τοπική αποθήκευση). Τίποτα δεν αποστέλλεται πουθενά αυτόματα. Φέρτε την αναφορά (PDF) στο ραντεβού σας.",
+  erase:"Διαγραφή τοπικών δεδομένων συσκευής", eraseConfirm:"Να διαγραφούν τα δεδομένα από ΑΥΤΗ τη συσκευή; Τα δεδομένα του λογαριασμού σας στον διακομιστή μένουν ασφαλή.",
+  privacyNote:"Το ημερολόγιό σας αποθηκεύεται με ασφάλεια και είναι ορατό μόνο σε εσάς και τη γιατρό σας.",
   clinician:"Θεράπουσα ιατρός: Πέρσα Παπαθεοδοσίου MD, MSc, PhDc — Ψυχίατρος, Υπνίατρος",
   cite:"Ερωτήματα: Consensus Sleep Diary © 2011 Carney et al. Χρήση αναλλοίωτη, μη κερδοσκοπική. Carney CE et al., SLEEP 2012;35(2):287-302. Η ελληνική απόδοση είναι προσωρινή έως την επίσημη μετάφραση.",
   h:"ω", min:"λ", hourLbl:"Ώρα", minLbl:"Λεπτά",
   am:"πμ", pm:"μμ", typeLbl:"⌨ Γράψτε", wheelLbl:"◷ Ρολόι", typeHint:"Γράψτε την ακριβή ώρα",
+  account:"Συνδεδεμένος/η ως", logout:"Αποσύνδεση",
+  offlineMode:"Λειτουργία χωρίς σύνδεση — οι καταχωρήσεις μένουν μόνο σε αυτή τη συσκευή μέχρι να συνδεθεί η εφαρμογή.",
+  loginTitle:"Καλώς ήρθατε 🤍",
+  loginHint:"Συνδεθείτε με το email και τον κωδικό σας.",
+  signupHint:"Δημιουργήστε λογαριασμό ώστε το ημερολόγιό σας να αποθηκεύεται με ασφάλεια και να το βλέπει μόνο η γιατρός σας.",
+  emailPh:"το email σας", pwPh:"ο κωδικός σας",
+  signIn:"Είσοδος", createAccount:"Δημιουργία λογαριασμού",
+  toSignup:"Νέος/α εδώ; Δημιουργήστε λογαριασμό", toSignin:"Έχετε ήδη λογαριασμό; Συνδεθείτε",
+  forgotPw:"Ξεχάσατε τον κωδικό σας;",
+  needBoth:"Συμπληρώστε το email και τον κωδικό σας.",
+  pwTooShort:"Χρησιμοποιήστε κωδικό τουλάχιστον 6 χαρακτήρων.",
+  badCreds:"Το email ή ο κωδικός δεν είναι σωστά. Δοκιμάστε ξανά.",
+  confirmSent:"Σχεδόν τελειώσατε — σας στείλαμε email με σύνδεσμο επιβεβαίωσης. Ανοίξτε τον και μετά συνδεθείτε.",
+  resetSent:"Αν αυτό το email έχει λογαριασμό, σας στείλαμε σύνδεσμο επαναφοράς κωδικού. Ελέγξτε τα εισερχόμενά σας.",
+  newPwTitle:"Ορίστε νέο κωδικό", newPwPh:"ο νέος σας κωδικός", savePw:"Αποθήκευση νέου κωδικού",
+  pwUpdated:"Ο κωδικός σας αποθηκεύτηκε και συνδεθήκατε. 🤍",
+  sendingReport:"Η αναφορά στέλνεται στη γιατρό σας…",
+  sentOk:"Εστάλη στη γιατρό σας 🤍", sentFail:"Δεν στάλθηκε",
+  sentFallback:"Δεν ήταν δυνατή η αυτόματη αποστολή — η αναφορά σας κατέβηκε ως PDF που μπορείτε να στείλετε με email στη γιατρό σας.",
   sumIntro:"Κοιτάζοντας την τελευταία σας εβδομάδα:",
   sumSE:se=>`Μέση αποδοτικότητα ύπνου ${se}%.`,
   sumTrendUp:"Η αποδοτικότητα του ύπνου σας βελτιώνεται σιγά σιγά — συνεχίστε τον ρυθμό. 🌱",
@@ -333,20 +361,20 @@ const STR = {
 let lang = localStorage.getItem("csd_lang") || "el";
 let view = "today";
 const T = () => STR[lang];
+window.T = T; // expose for the cloud layer (login sheet reads window.T())
 
 /* ---------- storage ---------- */
 const load = k => JSON.parse(localStorage.getItem(k) || "null");
 const save = (k,v) => localStorage.setItem(k, JSON.stringify(v));
-const entries = () => load("csd_entries") || {};   // {"YYYY-MM-DD": {...}}
-const notes   = () => load("csd_notes")   || [];   // [{date,text}]
-const remState= () => load("csd_rem")     || {};   // {"YYYY-MM-DD": [bool..]}
+const entries = () => load("csd_entries") || {};
+const notes   = () => load("csd_notes")   || [];
+const remState= () => load("csd_rem")     || {};
 
 const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 
-/* ---------- scoring (raw answers stored; metrics computed) ---------- */
+/* ---------- scoring ---------- */
 function toMin(t){ if(!t) return null; const [h,m]=t.split(":").map(Number); return h*60+m; }
-/* Evening times (12:00–23:59) belong to the previous calendar day. */
-function anchor(t){ const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); } // minutes relative to midnight of the diary morning
+function anchor(t){ const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); }
 function metrics(e){
   const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
   const sol=Number(e.q3)||0, waso=Number(e.q5)||0;
@@ -380,9 +408,17 @@ function render(){
 }
 function go(v){ view=v; if(v==="today") formDate=null; render(); window.scrollTo(0,0); }
 function toggleLang(){ lang = lang==="el"?"en":"el"; localStorage.setItem("csd_lang",lang); render(); }
+function toast(msg, ms=3000){
+  let el=$("toast"); if(el) el.remove();
+  el=document.createElement("div"); el.id="toast"; el.className="toast"; el.innerHTML=msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=>el.remove(),400); }, ms);
+}
 
-/* ---------- Apple-style time wheel picker ---------- */
-const WI=40; /* wheel item height, must match .wi CSS */
+/* ---------- time wheel picker ---------- */
+const WI=40;
 function timeBtn(id, val){
   return `<button type="button" class="timebtn ${val?"":"empty"}" id="${id}" data-v="${val}"
     onclick="openTime('${id}')">${val||"—:—"}</button>`;
@@ -391,7 +427,6 @@ function openTime(id){
   let ch=22, cm=0;
   const cur=$(id).dataset.v||"";
   if(/^\d{1,2}:\d{2}$/.test(cur)){ [ch,cm]=cur.split(":").map(Number); }
-  /* half-hour steps on the wheel: snap stored value to :00 or :30 */
   const rawM=cm;
   cm = cm<15 ? 0 : cm<45 ? 30 : 0;
   if(cm===0 && rawM>=45){ ch=(ch+1)%24; }
@@ -434,7 +469,6 @@ function wheelInit(el){
   const upd=()=>{ const i=Math.round(el.scrollTop/WI);
     [...el.children].forEach((c,j)=>c.classList.toggle("on", j===i)); };
   el.addEventListener("scroll", ()=>requestAnimationFrame(upd));
-  /* ratchet: one mouse-wheel tick = exactly one step */
   let lastTick=0;
   el.addEventListener("wheel", e=>{
     e.preventDefault();
@@ -452,8 +486,8 @@ function closeSheet(){
 function confirmTime(id){
   let val;
   if($("typeMode").style.display!=="none"){
-    val=$("typeInput").value;               /* typed: any minute allowed */
-    if(!/^\d{2}:\d{2}$/.test(val)) return;  /* nothing typed yet */
+    val=$("typeInput").value;
+    if(!/^\d{2}:\d{2}$/.test(val)) return;
   } else {
     const h12=Math.min(Math.round($("whH").scrollTop/WI), 11)+1;
     const m=Math.min(Math.round($("whM").scrollTop/WI), 1)*30;
@@ -467,7 +501,7 @@ function confirmTime(id){
 
 /* ---------- Today (morning form) ---------- */
 let qualitySel = null;
-let formDate = null;   /* which morning the form edits; reset when entering Today */
+let formDate = null;
 function vToday(){
   const t=T(), d=formDate||todayISO(), existing=entries()[d];
   qualitySel = existing ? existing.q8 : null;
@@ -486,10 +520,12 @@ function vToday(){
     ${timeBtn("f_q2", v("q2"))}
     <label><span class="qnum">3</span>${t.q3}</label>
     <div class="row"><input type="number" id="f_q3" min="0" max="720" placeholder="${t.minutes}" value="${v("q3")}"></div>
+    <div class="small">${t.minEg}</div>
     <label><span class="qnum">4</span>${t.q4}</label>
     <div class="row"><input type="number" id="f_q4" min="0" max="40" placeholder="${t.times}" value="${v("q4")}"></div>
     <label><span class="qnum">5</span>${t.q5}</label>
     <div class="row"><input type="number" id="f_q5" min="0" max="720" placeholder="${t.minutes}" value="${v("q5")}"></div>
+    <div class="small">${t.minEg}</div>
     <label><span class="qnum">6</span>${t.q6}</label>
     ${timeBtn("f_q6", v("q6"))}
     <label><span class="qnum">7</span>${t.q7}</label>
@@ -522,7 +558,9 @@ function bindToday(){
       $("formWarn").innerHTML=`<div class="warnbox">${missing?t.missingWarn:t.implausible}</div>`;
       $("formWarn").dataset.warned="1"; return;
     }
-    const all=entries(); all[$("f_date").value]=e; save("csd_entries",all);
+    const dateKey=$("f_date").value;
+    const all=entries(); all[dateKey]=e; save("csd_entries",all);
+    if(window.cloudPushEntry) window.cloudPushEntry(dateKey, e);
     $("view").insertAdjacentHTML("afterbegin",`<div class="okbox">${t.saved}</div>`);
     setTimeout(()=>go("diary"),900);
   };
@@ -564,7 +602,7 @@ function vDiary(){
             :`<div class="hint">${t.noEntries}</div>`}</div>`;
 }
 
-/* ---------- Trends (inline SVG) ---------- */
+/* ---------- Trends ---------- */
 function vTrends(){
   const t=T(), all=entries();
   const days=lastNDays(14).reverse();
@@ -589,7 +627,7 @@ function vTrends(){
        <span class="chip" style="color:#3d7d5f">- - ${t.tstLine}</span></div></div>`;
 }
 
-/* ---------- Wellbeing: notes + companion + reminders ---------- */
+/* ---------- Wellbeing ---------- */
 function companionSummary(){
   const t=T(), all=entries();
   const week=lastNDays(7).map(d=>({d,e:all[d]})).filter(x=>x.e);
@@ -601,7 +639,7 @@ function companionSummary(){
     const se=Math.round(ms.reduce((s,m)=>s+m.se,0)/ms.length);
     out.push(t.sumSE(se));
     const half=Math.floor(ms.length/2);
-    const early=ms.slice(half).reduce((s,m)=>s+m.se,0)/(ms.length-half); // older entries (list is newest-first)
+    const early=ms.slice(half).reduce((s,m)=>s+m.se,0)/(ms.length-half);
     const late =ms.slice(0,half).reduce((s,m)=>s+m.se,0)/half;
     out.push(late-early>3 ? t.sumTrendUp : early-late>3 ? t.sumTrendDown : t.sumTrendFlat);
   }
@@ -635,19 +673,24 @@ function toggleRem(i){
 }
 function addNote(){
   const txt=$("noteText").value.trim(); if(!txt) return;
-  const ns=notes(); ns.push({date:todayISO(), text:txt}); save("csd_notes",ns); render();
+  const n={date:todayISO(), text:txt};
+  const ns=notes(); ns.push(n); save("csd_notes",ns);
+  if(window.cloudPushNote) window.cloudPushNote(n);
+  render();
 }
 
-/* ---------- Settings / export ---------- */
+/* ---------- Settings ---------- */
 function vSettings(){
-  const t=T(), em=load("csd_doctor_email")||"";
+  const t=T();
+  const acct=window.cloudUser
+    ? `<div class="okbox" style="margin-top:8px">${t.account}: <b>${esc(window.cloudUser.email||"")}</b></div>`
+    : `<div class="warnbox" style="margin-top:8px">${t.offlineMode}</div>`;
   return `<div class="card"><h2>${t.settingsTitle}</h2>
     <div class="hint">${t.clinician}</div>
-    <label>${t.doctorEmail}</label>
-    <input type="email" id="docEmail" placeholder="${t.doctorEmailPh}" value="${esc(em)}"
-      onchange="save('csd_doctor_email',this.value.trim())">
+    ${acct}
     <button class="btn" onclick="sendToDoctor()">${t.sendDoctor}</button>
     <button class="btn secondary" onclick="downloadReport()">${t.downloadPdf}</button>
+    ${window.cloudUser?`<button class="btn secondary" onclick="cloudLogout()">${t.logout}</button>`:""}
     <div class="small">${t.privacyNote}</div>
     <div style="text-align:center;margin-top:26px">
       <a href="#" onclick="exportCSV();return false"
@@ -655,6 +698,14 @@ function vSettings(){
       <a href="#" onclick="eraseAll();return false"
          style="font-size:.75rem;color:var(--muted);text-decoration:underline">${t.erase}</a>
     </div></div>`;
+}
+async function sendToDoctor(){
+  const t=T();
+  if(!window.cloudSend){ downloadReport(); return; }
+  toast(t.sendingReport, 60000);
+  const r=await window.cloudSend();
+  if(r.ok){ toast(t.sentOk, 4000); markSaved(); }
+  else { console.warn("send-report failed:", r.error); toast(t.sentFallback, 8000); downloadReport(); }
 }
 function dl(name, mime, content){
   const a=document.createElement("a");
@@ -673,7 +724,7 @@ function csvContent(){
 }
 function exportCSV(){ dl("sleep-diary-export.csv","text/csv;charset=utf-8",csvContent()); }
 
-/* ---------- PDF report ---------- */
+/* ---------- client-side PDF (personal copy) ---------- */
 function reportHTML(){
   const t=T(), all=entries(), keys=Object.keys(all).sort();
   const ms=keys.map(d=>metrics(all[d])).filter(Boolean);
@@ -702,22 +753,6 @@ function reportHTML(){
     <div style="font-size:8px;color:#8a8a94;margin-top:12px">${t.cite}</div>
   </div>`;
 }
-function reportText(){
-  /* plain-text report for the email body — works everywhere, no PDF needed */
-  const t=T(), all=entries(), keys=Object.keys(all).sort().slice(-14);
-  const ms=keys.map(d=>metrics(all[d])).filter(Boolean);
-  const avg=f=>ms.length?Math.round(ms.reduce((s,m)=>s+m[f],0)/ms.length):null;
-  const L=[t.reportTitle, t.reportPeriod+": "+(keys[0]||"—")+" - "+(keys[keys.length-1]||"—"), ""];
-  if(ms.length) L.push(t.reportAvg+": TST "+fmtDur(avg("tst"))+" | SE "+avg("se")+"% | SOL "+avg("sol")+" min | WASO "+avg("waso")+" min", "");
-  for(const d of keys){
-    const e=all[d], m=metrics(e)||{};
-    L.push(d+": "+(e.q1||"—")+" -> "+(e.q7||"—")
-      +" | TST "+(m.tst!=null?fmtDur(m.tst):"—")+" | SE "+(m.se!=null?m.se+"%":"—")
-      +" | SOL "+(e.q3||0)+" min | WASO "+(e.q5||0)+" min"
-      +(e.q8!=null?" | "+t.quality[e.q8]:"")+(e.q9?" | "+e.q9:""));
-  }
-  return L.join("\n");
-}
 let _h2p=null;
 function ensureHtml2pdf(){
   if(window.html2pdf) return Promise.resolve();
@@ -732,8 +767,6 @@ function ensureHtml2pdf(){
 async function reportPdfBlob(){
   await ensureHtml2pdf();
   const el=document.createElement("div");
-  /* must sit at the real top of the page (behind everything) — off-screen
-     positions make html2canvas photograph an empty area = blank PDF */
   el.style.cssText="position:absolute;left:0;top:0;width:780px;background:#fff;z-index:-2000";
   el.innerHTML=reportHTML(); document.body.prepend(el);
   try{
@@ -743,14 +776,11 @@ async function reportPdfBlob(){
       jsPDF:{unit:"mm", format:"a4", orientation:"portrait"},
       pagebreak:{mode:["css","legacy"]}
     }).from(el).outputPdf("blob");
-    /* blank-page detector: a real rendered page is always far bigger than this */
     if(!blob || blob.size<8000) throw new Error("blank pdf");
     return blob;
   } finally { el.remove(); }
 }
 function printFallback(){
-  /* No popups, no internet needed: print styles show only the report,
-     and every browser's print dialog offers "Save as PDF". */
   let pa=document.getElementById("printArea");
   if(!pa){ pa=document.createElement("div"); pa.id="printArea"; document.body.appendChild(pa); }
   pa.innerHTML=reportHTML();
@@ -764,50 +794,21 @@ async function downloadReport(){
     a.download="sleep-report.pdf"; a.click(); URL.revokeObjectURL(a.href);
   }catch(e){ printFallback(); }
   markSaved();
-  const bb=$("backupBanner"); if(bb) bb.remove();  /* hide the reminder without wiping form input */
-}
-async function sendToDoctor(){
-  const t=T();
-  const em=($("docEmail")?$("docEmail").value.trim():"")||load("csd_doctor_email")||"";
-  if(!em){ alert(t.needEmail); $("docEmail") && $("docEmail").focus(); return; }
-  save("csd_doctor_email", em);
-  let blob=null;
-  try{ blob=await reportPdfBlob(); }catch(e){}
-  if(blob){
-    const file=new File([blob],"sleep-report.pdf",{type:"application/pdf"});
-    /* Mobile: share sheet with the PDF attached (Mail, WhatsApp, Viber...) */
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{ await navigator.share({files:[file], title:t.emailSubject, text:t.emailBody}); markSaved(); return; }
-      catch(err){ if(err.name==="AbortError") return; /* else fall through */ }
-    }
-    /* Desktop: save the PDF, then open a pre-addressed email */
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download="sleep-report.pdf"; a.click(); URL.revokeObjectURL(a.href);
-    alert(t.pdfSavedAttach); markSaved();
-    location.href="mailto:"+encodeURIComponent(em)
-      +"?subject="+encodeURIComponent(t.emailSubject)
-      +"&body="+encodeURIComponent(t.emailBody);
-  } else {
-    /* No PDF possible here? Fine — the email itself carries the whole report as text. */
-    markSaved();
-    location.href="mailto:"+encodeURIComponent(em)
-      +"?subject="+encodeURIComponent(t.emailSubject)
-      +"&body="+encodeURIComponent(t.emailBody+"\n\n----------\n"+reportText());
-  }
+  const bb=$("backupBanner"); if(bb) bb.remove();
 }
 function eraseAll(){
   if(confirm(T().eraseConfirm)){ ["csd_entries","csd_notes","csd_rem","csd_last_backup","csd_backup_snooze"].forEach(k=>localStorage.removeItem(k)); render(); }
 }
 
-/* ---------- gentle automatic backup prompt ---------- */
+/* ---------- gentle backup prompt ---------- */
 function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
 function backupBanner(){
   const t=T(), n=Object.keys(entries()).length;
-  if(n<3) return "";                                        // nothing worth backing up yet
+  if(n<3) return "";
   const last=load("csd_last_backup"), snooze=load("csd_backup_snooze"), today=todayISO();
-  if(last && daysBetween(last,today)<7) return "";          // backed up recently
-  if(snooze && daysBetween(snooze,today)<2) return "";      // asked recently, said later
-  return `<div class="card" id="backupBanner" style="border-color:var(--accent);background:var(--accent-soft)">
+  if(last && daysBetween(last,today)<7) return "";
+  if(snooze && daysBetween(snooze,today)<2) return "";
+  return `<div class="card" id="backupBanner" style="background:var(--accent-soft)">
     <h2>${t.backupTitle}</h2><div class="hint" style="margin-bottom:10px">${t.backupText}</div>
     <div class="row">
       <button class="btn" style="margin-top:0" onclick="downloadReport()">${t.backupNow}</button>
@@ -817,10 +818,174 @@ function backupBanner(){
 
 render();
 
-/* gentle splash: breathe in, then softly reveal the app */
 setTimeout(()=>{ const s=$("splash"); if(s){ s.classList.add("hide"); setTimeout(()=>s.remove(), 1550); } }, 2700);
 document.getElementById("splash").addEventListener("click", function(){ this.classList.add("hide"); setTimeout(()=>this.remove(), 1550); });
-/* end of app */
+/* end of core app */
+</script>
+
+<script type="module">
+/* ============ cloud layer: Supabase auth + sync + one-tap send ============ */
+const cfg = window.CSD_CONFIG || {};
+const configured = cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && !String(cfg.SUPABASE_URL).includes("PASTE");
+if (configured) {
+  try {
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+
+    async function pushEntry(date, e) {
+      try {
+        const { data: { user } } = await sb.auth.getUser(); if (!user) return;
+        await sb.from("entries").upsert({
+          user_id: user.id, date,
+          q1: e.q1 || null, q2: e.q2 || null, q3: String(e.q3 ?? ""), q4: String(e.q4 ?? ""),
+          q5: String(e.q5 ?? ""), q6: e.q6 || null, q7: e.q7 || null,
+          q8: e.q8 ?? null, q9: e.q9 || null, submitted_at: e.submittedAt || new Date().toISOString(),
+        }, { onConflict: "user_id,date" });
+      } catch (err) { /* offline — kept in localStorage, resynced on reconnect or next load */ }
+    }
+    async function pullAll() {
+      const { data: rows } = await sb.from("entries").select("*").order("date");
+      const all = JSON.parse(localStorage.getItem("csd_entries") || "{}");
+      const remoteDates = new Set();
+      (rows || []).forEach(r => {
+        remoteDates.add(r.date);
+        all[r.date] = { q1: r.q1 || "", q2: r.q2 || "", q3: r.q3 || "", q4: r.q4 || "",
+          q5: r.q5 || "", q6: r.q6 || "", q7: r.q7 || "", q8: r.q8, q9: r.q9 || "",
+          submittedAt: r.submitted_at };
+      });
+      localStorage.setItem("csd_entries", JSON.stringify(all));
+      for (const [d, e] of Object.entries(all)) if (!remoteDates.has(d)) pushEntry(d, e);
+      window.render();
+    }
+    window.cloudPushEntry = pushEntry;
+    window.cloudPushNote = async n => {
+      try {
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) await sb.from("notes").insert({ user_id: user.id, date: n.date, text: n.text });
+      } catch (err) { /* offline — note kept in localStorage */ }
+    };
+    window.addEventListener("online", () => { if (window.cloudUser) pullAll(); }); // flush pending entries on reconnect
+    window.cloudSend = async () => {
+      try {
+        const { data, error } = await sb.functions.invoke("send-report");
+        if (error) return { ok: false, error: error.message };
+        if (data && data.error) return { ok: false, error: data.error };
+        return { ok: true };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    };
+    window.cloudLogout = async () => { await sb.auth.signOut(); location.reload(); };
+
+    let authMode = "signin"; // "signin" | "signup"
+    function showLogin() {
+      if (document.getElementById("loginOv")) return;
+      const t = window.T();
+      const ov = document.createElement("div"); ov.className = "sheet-ov show"; ov.id = "loginOv";
+      ov.style.alignItems = "center"; ov.style.zIndex = "45";
+      const g = id => document.getElementById(id);
+      const setMsg = (id, text) => { const m = g(id); m.textContent = text || ""; m.style.display = text ? "" : "none"; };
+      function paint() {
+        const signup = authMode === "signup";
+        ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
+          <h2 style="color:var(--accent);margin-bottom:6px">${t.loginTitle}</h2>
+          <div class="hint">${signup ? t.signupHint : t.loginHint}</div>
+          <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email" inputmode="email">
+          <input type="password" id="liPw" placeholder="${t.pwPh}" style="margin-top:12px"
+            autocomplete="${signup ? "new-password" : "current-password"}">
+          <button class="btn" id="liGo">${signup ? t.createAccount : t.signIn}</button>
+          <div class="okbox" id="liMsg" style="margin-top:12px;display:none"></div>
+          <div class="small" id="liErr" style="color:#a33;margin-top:8px"></div>
+          <div style="text-align:center;margin-top:16px">
+            <a href="#" id="liToggle" style="color:var(--accent);text-decoration:underline;font-size:.9rem">${signup ? t.toSignin : t.toSignup}</a>
+          </div>
+          ${signup ? "" : `<div style="text-align:center;margin-top:10px">
+            <a href="#" id="liForgot" style="color:var(--muted);text-decoration:underline;font-size:.82rem">${t.forgotPw}</a></div>`}
+        </div>`;
+        wire();
+      }
+      function wire() {
+        g("liToggle").onclick = e => { e.preventDefault(); authMode = authMode === "signup" ? "signin" : "signup"; paint(); };
+        const fg = g("liForgot");
+        if (fg) fg.onclick = async e => {
+          e.preventDefault();
+          const email = g("liEmail").value.trim();
+          if (!email) { g("liErr").textContent = t.needBoth; return; }
+          g("liErr").textContent = "";
+          await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+          setMsg("liMsg", t.resetSent); // deliberately generic — never reveals whether the email exists
+        };
+        g("liGo").onclick = async () => {
+          const email = g("liEmail").value.trim();
+          const pw = g("liPw").value;
+          g("liErr").textContent = ""; setMsg("liMsg", "");
+          if (!email || !pw) { g("liErr").textContent = t.needBoth; return; }
+          if (authMode === "signup" && pw.length < 6) { g("liErr").textContent = t.pwTooShort; return; }
+          g("liGo").disabled = true;
+          try {
+            if (authMode === "signup") {
+              const { data, error } = await sb.auth.signUp({ email, password: pw });
+              if (error) { g("liErr").textContent = error.message; return; }
+              if (data.session) { ov.remove(); ready(); }   // email confirmation OFF -> straight in
+              else setMsg("liMsg", t.confirmSent);           // email confirmation ON  -> check inbox
+            } else {
+              const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+              if (error) { g("liErr").textContent = t.badCreds; return; }
+              ov.remove(); ready();
+            }
+          } finally { g("liGo").disabled = false; }
+        };
+      }
+      document.body.appendChild(ov);
+      paint();
+    }
+    function showSetPassword() {
+      if (document.getElementById("setPwOv")) return;
+      const t = window.T();
+      const lo = document.getElementById("loginOv"); if (lo) lo.remove();
+      const ov = document.createElement("div"); ov.className = "sheet-ov show"; ov.id = "setPwOv";
+      ov.style.alignItems = "center"; ov.style.zIndex = "46";
+      ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
+        <h2 style="color:var(--accent);margin-bottom:6px">${t.newPwTitle}</h2>
+        <input type="password" id="npPw" placeholder="${t.newPwPh}" autocomplete="new-password">
+        <button class="btn" id="npGo">${t.savePw}</button>
+        <div class="small" id="npErr" style="color:#a33;margin-top:8px"></div>
+      </div>`;
+      document.body.appendChild(ov);
+      const g = id => document.getElementById(id);
+      g("npGo").onclick = async () => {
+        const pw = g("npPw").value;
+        if (pw.length < 6) { g("npErr").textContent = t.pwTooShort; return; }
+        g("npGo").disabled = true;
+        const { error } = await sb.auth.updateUser({ password: pw });
+        g("npGo").disabled = false;
+        if (error) { g("npErr").textContent = error.message; return; }
+        history.replaceState(null, "", location.pathname + location.search); // drop the recovery token
+        ov.remove(); toast(t.pwUpdated); ready();
+      };
+    }
+    async function ready() {
+      const { data: { user } } = await sb.auth.getUser();
+      window.cloudUser = user;
+      window.render();
+      pullAll();
+    }
+    sb.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") showSetPassword(); // fired when the app opens from a reset link
+    });
+    const isRecovery = location.hash.includes("type=recovery");
+    const { data: { session } } = await sb.auth.getSession();
+    if (isRecovery) showSetPassword();      // let them set a new password, don't just log them in
+    else if (session) ready();
+    else setTimeout(showLogin, 3400);        /* let the splash breathe first */
+  } catch (e) {
+    console.warn("cloud layer unavailable:", e);
+  }
+}
+</script>
+<script>
+/* register the service worker so the app is installable and works offline */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
 </script>
 </body>
 </html>
