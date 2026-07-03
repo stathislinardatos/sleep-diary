@@ -176,7 +176,10 @@
       <h1 id="appTitle"></h1>
       <div class="sub" id="appSub"></div>
     </div>
-    <button class="langbtn" id="langBtn" onclick="toggleLang()"></button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="langbtn" id="authBtn" onclick="cloudAuthClick()" style="display:none"></button>
+      <button class="langbtn" id="langBtn" onclick="toggleLang()"></button>
+    </div>
   </header>
   <main id="view"></main>
   <div class="footer-note" id="citeNote"></div>
@@ -259,7 +262,7 @@ const STR = {
   cite:"Diary items: Consensus Sleep Diary © 2011 Carney et al. Used unaltered, not-for-profit. Carney CE et al., SLEEP 2012;35(2):287-302. Greek wording provisional pending official translation.",
   h:"h", min:"min", hourLbl:"Hour", minLbl:"Minutes",
   am:"AM", pm:"PM", typeLbl:"⌨ Type", wheelLbl:"◷ Dial", typeHint:"Type the exact time",
-  account:"Signed in as", logout:"Sign out",
+  account:"Signed in as", logout:"Sign out", signInBtn:"Sign in",
   offlineMode:"Offline mode — entries stay only on this device until the app is connected.",
   loginTitle:"Welcome 🤍",
   loginHint:"Sign in with your email and password.",
@@ -345,7 +348,7 @@ const STR = {
   cite:"Ερωτήματα: Consensus Sleep Diary © 2011 Carney et al. Χρήση αναλλοίωτη, μη κερδοσκοπική. Carney CE et al., SLEEP 2012;35(2):287-302. Η ελληνική απόδοση είναι προσωρινή έως την επίσημη μετάφραση.",
   h:"ω", min:"λ", hourLbl:"Ώρα", minLbl:"Λεπτά",
   am:"πμ", pm:"μμ", typeLbl:"⌨ Γράψτε", wheelLbl:"◷ Ρολόι", typeHint:"Γράψτε την ακριβή ώρα",
-  account:"Συνδεδεμένος/η ως", logout:"Αποσύνδεση",
+  account:"Συνδεδεμένος/η ως", logout:"Αποσύνδεση", signInBtn:"Σύνδεση",
   offlineMode:"Λειτουργία χωρίς σύνδεση — οι καταχωρήσεις μένουν μόνο σε αυτή τη συσκευή μέχρι να συνδεθεί η εφαρμογή.",
   loginTitle:"Καλώς ήρθατε 🤍",
   loginHint:"Συνδεθείτε με το email και τον κωδικό σας.",
@@ -529,7 +532,7 @@ function vToday(){
     <div class="hint">${t.morningHint}</div>
     ${existing?`<div class="okbox">${t.alreadyDone}</div>`:""}
     <label>${t.dateLabel}</label>
-    <input type="date" id="f_date" value="${d}" max="${todayISO()}"
+    <input type="date" id="f_date" value="${d}" max="${todayISO()}" style="text-align:center"
       onchange="formDate=this.value; render()">
     <label><span class="qnum">1</span>${t.q1}</label>
     ${timeBtn("f_q1", v("q1"))}
@@ -925,6 +928,12 @@ if (configured) {
       } catch (e) { return { ok: false, error: String(e) }; }
     };
     window.cloudLogout = async () => { await sb.auth.signOut(); location.reload(); };
+    window.cloudAuthClick = () => showLogin();
+    window.updateAuthBtn = () => {
+      const b = document.getElementById("authBtn"); if (!b) return;
+      if (window.cloudUser) { b.style.display = "none"; }
+      else { b.style.display = ""; b.textContent = window.T().signInBtn; }
+    };
 
     let authMode = "signin"; // "signin" | "signup"
     function showLogin() {
@@ -934,9 +943,14 @@ if (configured) {
       ov.style.alignItems = "center"; ov.style.zIndex = "45";
       const g = id => document.getElementById(id);
       const setMsg = (id, text) => { const m = g(id); m.textContent = text || ""; m.style.display = text ? "" : "none"; };
+      const close = () => { document.removeEventListener("keydown", onKey); ov.remove(); };
+      const onKey = e => { if (e.key === "Escape") close(); };
+      document.addEventListener("keydown", onKey);
+      ov.addEventListener("click", e => { if (e.target === ov) close(); }); // tap outside the card
       function paint() {
         const signup = authMode === "signup";
         ov.innerHTML = `<div class="sheet" style="border-radius:38px;max-width:420px;transform:none">
+          <button id="liClose" aria-label="Close" style="position:absolute;top:14px;right:16px;border:none;background:var(--accent-soft);color:var(--accent);width:36px;height:36px;border-radius:999px;font-size:18px;line-height:1;cursor:pointer">✕</button>
           <h2 style="color:var(--accent);margin-bottom:6px">${t.loginTitle}</h2>
           <div class="hint">${signup ? t.signupHint : t.loginHint}</div>
           <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email" inputmode="email">
@@ -954,6 +968,7 @@ if (configured) {
         wire();
       }
       function wire() {
+        g("liClose").onclick = close;
         g("liToggle").onclick = e => { e.preventDefault(); authMode = authMode === "signup" ? "signin" : "signup"; paint(); };
         const fg = g("liForgot");
         if (fg) fg.onclick = async e => {
@@ -961,8 +976,9 @@ if (configured) {
           const email = g("liEmail").value.trim();
           if (!email) { g("liErr").textContent = t.needBoth; return; }
           g("liErr").textContent = "";
-          await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
-          setMsg("liMsg", t.resetSent); // deliberately generic — never reveals whether the email exists
+          const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+          if (error) { g("liErr").textContent = error.message; return; } // surface real delivery/config failures
+          setMsg("liMsg", t.resetSent);
         };
         g("liGo").onclick = async () => {
           const email = g("liEmail").value.trim();
@@ -973,14 +989,14 @@ if (configured) {
           g("liGo").disabled = true;
           try {
             if (authMode === "signup") {
-              const { data, error } = await sb.auth.signUp({ email, password: pw });
+              const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.href.split("#")[0] } });
               if (error) { g("liErr").textContent = error.message; return; }
-              if (data.session) { ov.remove(); ready(); }   // email confirmation OFF -> straight in
+              if (data.session) { close(); ready(); }   // email confirmation OFF -> straight in
               else setMsg("liMsg", t.confirmSent);           // email confirmation ON  -> check inbox
             } else {
               const { error } = await sb.auth.signInWithPassword({ email, password: pw });
               if (error) { g("liErr").textContent = t.badCreds; return; }
-              ov.remove(); ready();
+              close(); ready();
             }
           } finally { g("liGo").disabled = false; }
         };
@@ -1017,6 +1033,7 @@ if (configured) {
       const { data: { user } } = await sb.auth.getUser();
       window.cloudUser = user;
       window.render();
+      window.updateAuthBtn();
       pullAll();
     }
     sb.auth.onAuthStateChange((event) => {
@@ -1026,7 +1043,7 @@ if (configured) {
     const { data: { session } } = await sb.auth.getSession();
     if (isRecovery) showSetPassword();      // let them set a new password, don't just log them in
     else if (session) ready();
-    else setTimeout(showLogin, 3400);        /* let the splash breathe first */
+    else { window.cloudUser = null; window.updateAuthBtn(); }  // no forced login — just show the Sign in bubble
   } catch (e) {
     console.warn("cloud layer unavailable:", e);
   }
