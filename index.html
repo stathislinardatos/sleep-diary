@@ -249,7 +249,9 @@ const STR = {
   mTSTsub:"Avg total sleep", mSEsub:"Avg efficiency", mSOLsub:"Avg time to fall asleep", mWASOsub:"Avg awake at night",
   legend:"TST = total sleep · SE = sleep efficiency · SOL = time to fall asleep · WASO = time awake during the night",
   preparing:"Preparing your report…", pdfReady:"Your report is ready as a PDF 🤍",
-  shareText:"My sleep diary report", noDataYet:"Add at least one night before creating a report.",
+  noDataYet:"Add at least one night before creating a report.",
+  mailSubject:"Sleep diary report",
+  mailBody:"Dear Doctor,\n\nPlease find attached my sleep diary report (PDF).\n\nKind regards",
   rHead:["Date","To bed","Tried to sleep","Min to sleep","Awakenings","Awake (min)","Final wake","Out of bed","Total sleep","Effic.","Quality","Comments"],
   erase:"Erase local data on this device", eraseConfirm:"Delete diary data stored on THIS device? Your account data on the server stays safe.",
   privacyNote:"Your diary is stored securely and is visible only to you and your doctor.",
@@ -333,7 +335,9 @@ const STR = {
   mTSTsub:"Μέσος συνολικός ύπνος", mSEsub:"Μέση αποδοτικότητα", mSOLsub:"Μέσος χρόνος επέλευσης", mWASOsub:"Μέσος χρόνος ξύπνιου",
   legend:"TST = συνολικός ύπνος · SE = αποδοτικότητα ύπνου · SOL = χρόνος επέλευσης ύπνου · WASO = χρόνος ξύπνιου μέσα στη νύχτα",
   preparing:"Ετοιμάζεται η αναφορά σας…", pdfReady:"Η αναφορά σας είναι έτοιμη ως PDF 🤍",
-  shareText:"Η αναφορά του ημερολογίου ύπνου μου", noDataYet:"Προσθέστε τουλάχιστον μία νύχτα πριν δημιουργήσετε αναφορά.",
+  noDataYet:"Προσθέστε τουλάχιστον μία νύχτα πριν δημιουργήσετε αναφορά.",
+  mailSubject:"Αναφορά ημερολογίου ύπνου",
+  mailBody:"Αγαπητή κυρία Παπαθεοδοσίου,\n\nΣας στέλνω συνημμένη την αναφορά του ημερολογίου ύπνου μου (PDF).\n\nΜε εκτίμηση",
   rHead:["Ημ/νία","Στο κρεβάτι","Προσπάθεια ύπνου","Λεπτά επέλευσης","Ξυπνήματα","Ξύπνιος/α (λεπτά)","Τελικό ξύπνημα","Έγερση","Συνολικός ύπνος","Αποδοτ.","Ποιότητα","Σχόλια"],
   erase:"Διαγραφή τοπικών δεδομένων συσκευής", eraseConfirm:"Να διαγραφούν τα δεδομένα από ΑΥΤΗ τη συσκευή; Τα δεδομένα του λογαριασμού σας στον διακομιστή μένουν ασφαλή.",
   privacyNote:"Το ημερολόγιό σας αποθηκεύεται με ασφάλεια και είναι ορατό μόνο σε εσάς και τη γιατρό σας.",
@@ -723,13 +727,13 @@ async function sendToDoctor(){
   const file=new File([blob],"sleep-report.pdf",{type:"application/pdf"});
   // Phone: open the share sheet with the PDF attached (Mail, Gmail, WhatsApp, Viber…)
   if(navigator.canShare && navigator.canShare({files:[file]})){
-    try{ await navigator.share({files:[file], title:t.reportTitle, text:t.shareText}); clearToast(); markSaved(); return; }
+    try{ await navigator.share({files:[file], title:t.mailSubject, text:t.mailBody}); clearToast(); markSaved(); return; }
     catch(err){ if(err && err.name==="AbortError"){ clearToast(); return; } }  // user cancelled the share
   }
-  // Desktop / no share support: download the PDF and open the mail app to attach it
+  // Desktop / no share support: download the PDF, then open the mail app with a ready greeting
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="sleep-report.pdf"; a.click(); URL.revokeObjectURL(a.href);
   clearToast(); toast(t.pdfReady, 6000); markSaved();
-  location.href="mailto:?subject="+encodeURIComponent(t.reportTitle);
+  location.href="mailto:?subject="+encodeURIComponent(t.mailSubject)+"&body="+encodeURIComponent(t.mailBody);
 }
 function dl(name, mime, content){
   const a=document.createElement("a");
