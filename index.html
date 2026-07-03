@@ -41,6 +41,10 @@
     border-radius:16px; background:#f5f1e9; color:var(--ink); transition:all .25s}
   input:focus,textarea:focus{outline:none; border-color:var(--teal); background:#fffdf9;
     box-shadow:0 0 0 4px rgba(105,180,174,.14)}
+  /* iOS Safari ignores text-align on date inputs — center the value via its WebKit pseudo-element */
+  input[type=date]{text-align:center}
+  input[type=date]::-webkit-date-and-time-value{text-align:center; width:100%}
+  input[type=date]::-webkit-datetime-edit{text-align:center; width:100%}
   textarea{min-height:88px; resize:vertical}
   .row{display:flex; gap:10px}
   .row>*{flex:1}
