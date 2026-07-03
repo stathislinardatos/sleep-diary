@@ -209,7 +209,7 @@ const STR = {
   q7:"What time did you get out of bed for the day?",
   q8:"How would you rate the quality of your sleep?",
   q9:"Comments (if applicable)",
-  minutes:"minutes", times:"times",
+  minutes:"minutes", times:"times", minEg:"in minutes — e.g. 20",
   quality:["Very poor","Poor","Fair","Good","Very good"],
   save:"Save my night", saved:"Saved. Sleep well tonight 🤍",
   alreadyDone:"You already filled in this morning's diary. You can edit it below.",
@@ -287,7 +287,7 @@ const STR = {
   q7:"Τι ώρα σηκωθήκατε από το κρεβάτι για την ημέρα;",
   q8:"Πώς θα βαθμολογούσατε την ποιότητα του ύπνου σας;",
   q9:"Σχόλια (εάν υπάρχουν)",
-  minutes:"λεπτά", times:"φορές",
+  minutes:"λεπτά", times:"φορές", minEg:"σε λεπτά — π.χ. 20",
   quality:["Πολύ κακή","Κακή","Μέτρια","Καλή","Πολύ καλή"],
   save:"Αποθήκευση της νύχτας μου", saved:"Αποθηκεύτηκε. Καλό βράδυ απόψε 🤍",
   alreadyDone:"Έχετε ήδη συμπληρώσει το σημερινό ημερολόγιο. Μπορείτε να το διορθώσετε παρακάτω.",
@@ -515,10 +515,12 @@ function vToday(){
     ${timeBtn("f_q2", v("q2"))}
     <label><span class="qnum">3</span>${t.q3}</label>
     <div class="row"><input type="number" id="f_q3" min="0" max="720" placeholder="${t.minutes}" value="${v("q3")}"></div>
+    <div class="small">${t.minEg}</div>
     <label><span class="qnum">4</span>${t.q4}</label>
     <div class="row"><input type="number" id="f_q4" min="0" max="40" placeholder="${t.times}" value="${v("q4")}"></div>
     <label><span class="qnum">5</span>${t.q5}</label>
     <div class="row"><input type="number" id="f_q5" min="0" max="720" placeholder="${t.minutes}" value="${v("q5")}"></div>
+    <div class="small">${t.minEg}</div>
     <label><span class="qnum">6</span>${t.q6}</label>
     ${timeBtn("f_q6", v("q6"))}
     <label><span class="qnum">7</span>${t.q7}</label>
