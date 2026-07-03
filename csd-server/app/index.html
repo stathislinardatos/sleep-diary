@@ -264,6 +264,7 @@ const STR = {
   pwUpdated:"Your password is saved and you're signed in. 🤍",
   sendingReport:"Sending your report to your doctor…",
   sentOk:"Sent to your doctor 🤍", sentFail:"Could not send",
+  sentFallback:"Couldn't send automatically — your report was downloaded as a PDF you can email to your doctor.",
   sumIntro:"Looking at your last week:",
   sumSE:se=>`Average sleep efficiency ${se}%.`,
   sumTrendUp:"Your sleep efficiency is gently improving — keep the rhythm going. 🌱",
@@ -342,6 +343,7 @@ const STR = {
   pwUpdated:"Ο κωδικός σας αποθηκεύτηκε και συνδεθήκατε. 🤍",
   sendingReport:"Η αναφορά στέλνεται στη γιατρό σας…",
   sentOk:"Εστάλη στη γιατρό σας 🤍", sentFail:"Δεν στάλθηκε",
+  sentFallback:"Δεν ήταν δυνατή η αυτόματη αποστολή — η αναφορά σας κατέβηκε ως PDF που μπορείτε να στείλετε με email στη γιατρό σας.",
   sumIntro:"Κοιτάζοντας την τελευταία σας εβδομάδα:",
   sumSE:se=>`Μέση αποδοτικότητα ύπνου ${se}%.`,
   sumTrendUp:"Η αποδοτικότητα του ύπνου σας βελτιώνεται σιγά σιγά — συνεχίστε τον ρυθμό. 🌱",
@@ -699,8 +701,8 @@ async function sendToDoctor(){
   if(!window.cloudSend){ downloadReport(); return; }
   toast(t.sendingReport, 60000);
   const r=await window.cloudSend();
-  toast(r.ok ? t.sentOk : (t.sentFail+(r.error?": "+esc(r.error):"")), r.ok?4000:8000);
-  if(r.ok) markSaved();
+  if(r.ok){ toast(t.sentOk, 4000); markSaved(); }
+  else { console.warn("send-report failed:", r.error); toast(t.sentFallback, 8000); downloadReport(); }
 }
 function dl(name, mime, content){
   const a=document.createElement("a");
@@ -828,13 +830,15 @@ if (configured) {
     const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
     async function pushEntry(date, e) {
-      const { data: { user } } = await sb.auth.getUser(); if (!user) return;
-      await sb.from("entries").upsert({
-        user_id: user.id, date,
-        q1: e.q1 || null, q2: e.q2 || null, q3: String(e.q3 ?? ""), q4: String(e.q4 ?? ""),
-        q5: String(e.q5 ?? ""), q6: e.q6 || null, q7: e.q7 || null,
-        q8: e.q8 ?? null, q9: e.q9 || null, submitted_at: e.submittedAt || new Date().toISOString(),
-      }, { onConflict: "user_id,date" });
+      try {
+        const { data: { user } } = await sb.auth.getUser(); if (!user) return;
+        await sb.from("entries").upsert({
+          user_id: user.id, date,
+          q1: e.q1 || null, q2: e.q2 || null, q3: String(e.q3 ?? ""), q4: String(e.q4 ?? ""),
+          q5: String(e.q5 ?? ""), q6: e.q6 || null, q7: e.q7 || null,
+          q8: e.q8 ?? null, q9: e.q9 || null, submitted_at: e.submittedAt || new Date().toISOString(),
+        }, { onConflict: "user_id,date" });
+      } catch (err) { /* offline — kept in localStorage, resynced on reconnect or next load */ }
     }
     async function pullAll() {
       const { data: rows } = await sb.from("entries").select("*").order("date");
@@ -852,9 +856,12 @@ if (configured) {
     }
     window.cloudPushEntry = pushEntry;
     window.cloudPushNote = async n => {
-      const { data: { user } } = await sb.auth.getUser();
-      if (user) await sb.from("notes").insert({ user_id: user.id, date: n.date, text: n.text });
+      try {
+        const { data: { user } } = await sb.auth.getUser();
+        if (user) await sb.from("notes").insert({ user_id: user.id, date: n.date, text: n.text });
+      } catch (err) { /* offline — note kept in localStorage */ }
     };
+    window.addEventListener("online", () => { if (window.cloudUser) pullAll(); }); // flush pending entries on reconnect
     window.cloudSend = async () => {
       try {
         const { data, error } = await sb.functions.invoke("send-report");
