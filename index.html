@@ -516,9 +516,12 @@ function toggleTypeMode(){
 function wheelInit(el){
   const upd=()=>{ const i=Math.round(el.scrollTop/WI);
     [...el.children].forEach((c,j)=>c.classList.toggle("on", j===i)); };
-  el.addEventListener("scroll", ()=>requestAnimationFrame(upd));
+  /* native scroll — works for both iPhone touch and PC (passive: don't block touch) */
+  el.addEventListener("scroll", ()=>requestAnimationFrame(upd), {passive:true});
+  /* intercept only the mouse wheel on PC; never sabotages touch on mobile */
   let lastTick=0;
   el.addEventListener("wheel", e=>{
+    if(Math.abs(e.deltaY)<2) return;
     e.preventDefault();
     const now=Date.now(); if(now-lastTick<140) return; lastTick=now;
     const max=(el.children.length-1)*WI;
