@@ -32,6 +32,8 @@ create table if not exists public.entries (
   date date not null,
   q1 text, q2 text, q3 text, q4 text, q5 text,
   q6 text, q7 text, q8 int, q9 text,
+  want_wake text,   -- "what time did you want to wake up?" (supplementary)
+  oob_min text,     -- minutes out of bed during the night (asked when WASO > 20)
   submitted_at timestamptz default now(),
   unique (user_id, date)
 );

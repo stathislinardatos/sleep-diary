@@ -225,6 +225,9 @@ const STR = {
   q7:"What time did you get out of bed for the day?",
   q8:"How would you rate the quality of your sleep?",
   q9:"Comments (if applicable)",
+  qWake:"What time did you want to wake up?",
+  qOob:"How many minutes did you get out of bed during the night?",
+  addl:"A little more",
   minutes:"minutes", times:"times", minEg:"in minutes — e.g. 20",
   quality:["Very poor","Poor","Fair","Good","Very good"],
   save:"Save my night", saved:"Saved. Sleep well tonight 🤍",
@@ -312,6 +315,9 @@ const STR = {
   q7:"Τι ώρα σηκωθήκατε από το κρεβάτι για την ημέρα;",
   q8:"Πώς θα βαθμολογούσατε την ποιότητα του ύπνου σας;",
   q9:"Σχόλια (εάν υπάρχουν)",
+  qWake:"Τι ώρα θέλατε να ξυπνήσετε;",
+  qOob:"Πόσα λεπτά σηκωθήκατε από το κρεβάτι μέσα στη νύχτα;",
+  addl:"Λίγα ακόμη",
   minutes:"λεπτά", times:"φορές", minEg:"σε λεπτά — π.χ. 20",
   quality:["Πολύ κακή","Κακή","Μέτρια","Καλή","Πολύ καλή"],
   save:"Αποθήκευση της νύχτας μου", saved:"Αποθηκεύτηκε. Καλό βράδυ απόψε 🤍",
@@ -404,6 +410,8 @@ const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d
 const fmtDate = iso => { try { return new Date(iso+"T00:00:00").toLocaleDateString(lang==="el"?"el-GR":"en-GB",{day:"numeric",month:"short",year:"numeric"}); } catch(e){ return iso; } };
 /* open the native date picker on tap (works on iOS 16+/modern browsers; falls back to focus) */
 function openDatePicker(){ const i=$("f_date"); if(!i) return; try{ if(i.showPicker) i.showPicker(); else { i.focus(); i.click(); } }catch(e){ try{ i.focus(); }catch(_){} } }
+/* show the "minutes out of bed" question only when awake >20 min at night */
+function toggleOob(){ const w=Number(($("f_q5")||{}).value)||0; const r=$("oobRow"); if(r) r.style.display = w>20 ? "block" : "none"; }
 
 /* ---------- scoring ---------- */
 function toMin(t){ if(!t) return null; const [h,m]=t.split(":").map(Number); return h*60+m; }
@@ -417,8 +425,14 @@ function metrics(e){
   const terminal = (finalWake!==null && outBed>=finalWake) ? outBed-finalWake : 0;
   let tst = tib - preSleep - sol - waso - terminal;
   if(tst<0) tst=0;
-  const se = tib>0 ? Math.round(tst/tib*100) : null;
-  return {tib, tst, se, sol, waso};
+  // SE window: from "tried to sleep" (Q2) to "out of bed" (Q7) — or to the
+  // "wanted-to-wake" time when that is later than the final awakening (Q6).
+  const want = toMin(e.qWake);
+  const winStart = (trySl!==null) ? trySl : bed;
+  const winEnd = (want!==null && finalWake!==null && want>finalWake) ? want : outBed;
+  const opp = winEnd - winStart;
+  const se = opp>0 ? Math.min(100, Math.round(tst/opp*100)) : null;
+  return {tib, tst, se, sol, waso, opp};
 }
 const fmtDur = m => { if(m==null) return "—"; const h=Math.floor(m/60); return h+T().h+" "+String(m%60).padStart(2,"0")+T().min; };
 
@@ -559,12 +573,19 @@ function vToday(){
     <label><span class="qnum">4</span>${t.q4}</label>
     <div class="row"><input type="number" id="f_q4" min="0" max="40" placeholder="${t.times}" value="${v("q4")}"></div>
     <label><span class="qnum">5</span>${t.q5}</label>
-    <div class="row"><input type="number" id="f_q5" min="0" max="720" placeholder="${t.minutes}" value="${v("q5")}"></div>
+    <div class="row"><input type="number" id="f_q5" min="0" max="720" placeholder="${t.minutes}" value="${v("q5")}" oninput="toggleOob()"></div>
     <div class="small">${t.minEg}</div>
     <label><span class="qnum">6</span>${t.q6}</label>
     ${timeBtn("f_q6", v("q6"))}
     <label><span class="qnum">7</span>${t.q7}</label>
     ${timeBtn("f_q7", v("q7"))}
+    <div style="margin:24px 0 2px;font-size:.8rem;color:var(--muted);text-align:center;letter-spacing:.05em;text-transform:uppercase">${t.addl}</div>
+    <label>${t.qWake}</label>
+    ${timeBtn("f_qWake", v("qWake"))}
+    <div id="oobRow" style="display:${(Number(v("q5"))||0)>20?"block":"none"}">
+      <label>${t.qOob}</label>
+      <div class="row"><input type="number" id="f_qOob" min="0" max="720" placeholder="${t.minutes}" value="${v("qOob")}"></div>
+    </div>
     <label><span class="qnum">8</span>${t.q8}</label>
     <div class="quality" id="f_q8">
       ${t.quality.map((q,i)=>`<button type="button" data-i="${i}" class="${qualitySel===i?"sel":""}">${q}</button>`).join("")}
@@ -583,9 +604,12 @@ function bindToday(){
   $("saveBtn").onclick=()=>{
     const t=T();
     const tv=id=>$(id).dataset.v||"";
+    const oobEl=$("f_qOob");
     const e={ q1:tv("f_q1"), q2:tv("f_q2"), q3:$("f_q3").value, q4:$("f_q4").value,
               q5:$("f_q5").value, q6:tv("f_q6"), q7:tv("f_q7"), q8:qualitySel,
-              q9:$("f_q9").value.trim(), submittedAt:new Date().toISOString() };
+              q9:$("f_q9").value.trim(), qWake:tv("f_qWake"),
+              qOob:(oobEl && oobEl.offsetParent!==null) ? oobEl.value : "",
+              submittedAt:new Date().toISOString() };
     const m=metrics(e);
     const bad = m && (m.tst===0 || m.tib<=0 || m.tib>16*60);
     const missing = !e.q1 || !e.q7 || e.q8==null;
@@ -767,11 +791,11 @@ function dl(name, mime, content){
 }
 function csvContent(){
   const all=entries();
-  const head="date,bed_time_q1,try_sleep_q2,sol_min_q3,awakenings_q4,waso_min_q5,final_wake_q6,out_of_bed_q7,quality_0to4_q8,comments_q9,TIB_min,TST_min,SE_pct,submitted_at";
+  const head="date,bed_time_q1,try_sleep_q2,sol_min_q3,awakenings_q4,waso_min_q5,final_wake_q6,out_of_bed_q7,quality_0to4_q8,comments_q9,wanted_wake,out_of_bed_min,TIB_min,TST_min,SE_pct,submitted_at";
   const rows=Object.keys(all).sort().map(d=>{
     const e=all[d], m=metrics(e)||{};
     const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
-    return [d,e.q1,e.q2,e.q3,e.q4,e.q5,e.q6,e.q7,e.q8,q(e.q9),m.tib??"",m.tst??"",m.se??"",e.submittedAt||""].join(",");
+    return [d,e.q1,e.q2,e.q3,e.q4,e.q5,e.q6,e.q7,e.q8,q(e.q9),e.qWake||"",e.qOob||"",m.tib??"",m.tst??"",m.se??"",e.submittedAt||""].join(",");
   });
   return "﻿"+head+"\n"+rows.join("\n");
 }
@@ -915,7 +939,9 @@ if (configured) {
           user_id: user.id, date,
           q1: e.q1 || null, q2: e.q2 || null, q3: String(e.q3 ?? ""), q4: String(e.q4 ?? ""),
           q5: String(e.q5 ?? ""), q6: e.q6 || null, q7: e.q7 || null,
-          q8: e.q8 ?? null, q9: e.q9 || null, submitted_at: e.submittedAt || new Date().toISOString(),
+          q8: e.q8 ?? null, q9: e.q9 || null,
+          want_wake: e.qWake || null, oob_min: (e.qOob===""||e.qOob==null) ? null : String(e.qOob),
+          submitted_at: e.submittedAt || new Date().toISOString(),
         }, { onConflict: "user_id,date" });
       } catch (err) { /* offline — kept in localStorage, resynced on reconnect or next load */ }
     }
@@ -927,6 +953,7 @@ if (configured) {
         remoteDates.add(r.date);
         all[r.date] = { q1: r.q1 || "", q2: r.q2 || "", q3: r.q3 || "", q4: r.q4 || "",
           q5: r.q5 || "", q6: r.q6 || "", q7: r.q7 || "", q8: r.q8, q9: r.q9 || "",
+          qWake: r.want_wake || "", qOob: r.oob_min || "",
           submittedAt: r.submitted_at };
       });
       localStorage.setItem("csd_entries", JSON.stringify(all));
