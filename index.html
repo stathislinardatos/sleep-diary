@@ -460,9 +460,8 @@ function openTime(id){
   let ch=22, cm=0;
   const cur=$(id).dataset.v||"";
   if(/^\d{1,2}:\d{2}$/.test(cur)){ [ch,cm]=cur.split(":").map(Number); }
-  const rawM=cm;
-  cm = cm<15 ? 0 : cm<45 ? 30 : 0;
-  if(cm===0 && rawM>=45){ ch=(ch+1)%24; }
+  cm = Math.round(cm/5)*5;
+  if(cm===60){ cm=0; ch=(ch+1)%24; }
   const h12=((ch+11)%12)+1, pm=ch>=12?1:0;
   const t=T();
   const ov=document.createElement("div"); ov.className="sheet-ov"; ov.id="sheetOv";
@@ -474,7 +473,7 @@ function openTime(id){
         <div class="wheel-hl"></div>
         <div class="wheel" id="whH">${Array.from({length:12},(_,i)=>`<div class="wi">${i+1}</div>`).join("")}</div>
         <div class="wsep">:</div>
-        <div class="wheel" id="whM">${[0,30].map(m=>`<div class="wi">${String(m).padStart(2,"0")}</div>`).join("")}</div>
+        <div class="wheel" id="whM">${Array.from({length:12},(_,i)=>i*5).map(m=>`<div class="wi">${String(m).padStart(2,"0")}</div>`).join("")}</div>
         <div class="wsep"></div>
         <div class="wheel" id="whA"><div class="wi">${t.am}</div><div class="wi">${t.pm}</div></div>
       </div>
@@ -487,7 +486,7 @@ function openTime(id){
   </div>`;
   document.body.appendChild(ov);
   wheelInit($("whH")); wheelInit($("whM")); wheelInit($("whA"));
-  $("whH").scrollTop=(h12-1)*WI; $("whM").scrollTop=(cm/30)*WI; $("whA").scrollTop=pm*WI;
+  $("whH").scrollTop=(h12-1)*WI; $("whM").scrollTop=(cm/5)*WI; $("whA").scrollTop=pm*WI;
   requestAnimationFrame(()=>ov.classList.add("show"));
   ov.addEventListener("click", e=>{ if(e.target===ov) closeSheet(); });
 }
@@ -524,7 +523,7 @@ function confirmTime(id){
     if(!mt || +mt[1]>23 || +mt[2]>59) return;   // reject impossible times (25:70)
   } else {
     const h12=Math.min(Math.round($("whH").scrollTop/WI), 11)+1;
-    const m=Math.min(Math.round($("whM").scrollTop/WI), 1)*30;
+    const m=Math.min(Math.round($("whM").scrollTop/WI), 11)*5;
     const pm=Math.min(Math.round($("whA").scrollTop/WI), 1)===1;
     const h24=(h12%12)+(pm?12:0);
     val=String(h24).padStart(2,"0")+":"+String(m).padStart(2,"0");
