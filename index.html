@@ -80,6 +80,8 @@
   nav button .ico{font-size:1.3rem}
   /* narrow portrait phones: shrink the tab labels a little so all 5 fit (icons stay large) */
   @media(max-width:430px){ nav button{font-size:.66rem} }
+  .tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch}  /* safety net: wide table scrolls, never breaks the card */
+  .tblwrap th, .tblwrap td{white-space:nowrap}                 /* clean single-line rows in the diary table */
   table{width:100%; border-collapse:collapse; font-size:.88rem}
   th,td{padding:10px 6px; text-align:center; border-bottom:1px solid #f2eee6}
   th{color:var(--muted); font-weight:600; font-size:.76rem; letter-spacing:.03em}
@@ -103,7 +105,7 @@
   svg text{font-family:inherit}
   .footer-note{font-size:.72rem; color:var(--muted); text-align:center; margin-top:24px; line-height:1.5}
   @media(max-width:480px){ body{font-size:16px} .row{flex-direction:column; gap:0}
-    table{font-size:.72rem} th,td{padding:8px 3px} th{font-size:.64rem} }
+    table{font-size:.66rem} th,td{padding:8px 2px} th{font-size:.6rem} }
   #splash{position:fixed; inset:0; background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%); z-index:50;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; padding:28px; opacity:0; transform:scale(.985);
@@ -674,7 +676,7 @@ function vDiary(){
   }
   const hasAny=Object.keys(all).length>0;
   return avg+`<div class="card"><h2>${t.diaryTitle}</h2><div class="hint">${t.diaryHint}</div>
-    ${hasAny?`<table><tr><th>${t.colDate}</th><th>${t.colTST}</th><th>${t.colSE}</th><th>${t.colSOL}</th><th>${t.colWASO}</th><th>${t.colQ}</th></tr>${rows}</table>`
+    ${hasAny?`<div class="tblwrap"><table><tr><th>${t.colDate}</th><th>${t.colTST}</th><th>${t.colSE}</th><th>${t.colSOL}</th><th>${t.colWASO}</th><th>${t.colQ}</th></tr>${rows}</table></div>`
             :`<div class="hint">${t.noEntries}</div>`}</div>`;
 }
 
