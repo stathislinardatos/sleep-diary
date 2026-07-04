@@ -434,6 +434,8 @@ function metrics(e){
   const se = opp>0 ? Math.min(100, Math.round(tst/opp*100)) : null;
   return {tib, tst, se, sol, waso, opp};
 }
+/* metrics for STATISTICS only — excludes implausible nights so averages/charts aren't skewed */
+function statMetrics(e){ const m=metrics(e); if(!m || m.se==null || m.tib<=0 || m.tib>16*60) return null; return m; }
 const fmtDur = m => { if(m==null) return "—"; const h=Math.floor(m/60); return h+T().h+" "+String(m%60).padStart(2,"0")+T().min; };
 
 /* ---------- rendering ---------- */
@@ -651,7 +653,7 @@ function vDiary(){
       <td>${e.q5||0}${T().min}</td>
       <td>${e.q8!=null?t.quality[e.q8]:"—"}</td></tr>`;
   }).join("");
-  const week=days.slice(0,7).map(d=>all[d]).filter(Boolean).map(metrics).filter(Boolean);
+  const week=days.slice(0,7).map(d=>all[d]).filter(Boolean).map(statMetrics).filter(Boolean);
   let avg="";
   if(week.length){
     const a=f=>Math.round(week.reduce((s,m)=>s+m[f],0)/week.length);
@@ -672,7 +674,7 @@ function vDiary(){
 function vTrends(){
   const t=T(), all=entries();
   const days=lastNDays(14).reverse();
-  const pts=days.map(d=>({d, m: all[d]?metrics(all[d]):null})).filter(p=>p.m);
+  const pts=days.map(d=>({d, m: all[d]?statMetrics(all[d]):null})).filter(p=>p.m);
   if(pts.length<3) return `<div class="card"><h2>${t.trendsTitle}</h2><div class="hint">${t.needMore}</div></div>`;
   const W=620,H=240,P=40;
   const x=i=>P+i*(W-2*P)/Math.max(pts.length-1,1);
@@ -699,7 +701,7 @@ function companionSummary(){
   const week=lastNDays(7).map(d=>({d,e:all[d]})).filter(x=>x.e);
   const ns=notes();
   if(week.length<3 && ns.length<3) return `<div class="hint">${t.compNoData}</div>`;
-  const ms=week.map(x=>metrics(x.e)).filter(Boolean);
+  const ms=week.map(x=>statMetrics(x.e)).filter(Boolean);
   const out=[t.sumIntro];
   if(ms.length>=3){
     const se=Math.round(ms.reduce((s,m)=>s+m.se,0)/ms.length);
@@ -804,7 +806,7 @@ function exportCSV(){ dl("sleep-diary-export.csv","text/csv;charset=utf-8",csvCo
 /* ---------- client-side PDF (personal copy) ---------- */
 function reportHTML(){
   const t=T(), all=entries(), keys=Object.keys(all).sort();
-  const ms=keys.map(d=>metrics(all[d])).filter(Boolean);
+  const ms=keys.map(d=>statMetrics(all[d])).filter(Boolean);
   const avg=f=>ms.length?Math.round(ms.reduce((s,m)=>s+m[f],0)/ms.length):null;
   const who=(window.cloudUser&&window.cloudUser.email)?`${t.patientLabel}: <b>${esc(window.cloudUser.email)}</b> &nbsp;·&nbsp; `:"";
 
@@ -943,21 +945,48 @@ if (configured) {
           want_wake: e.qWake || null, oob_min: (e.qOob===""||e.qOob==null) ? null : String(e.qOob),
           submitted_at: e.submittedAt || new Date().toISOString(),
         }, { onConflict: "user_id,date" });
-      } catch (err) { /* offline — kept in localStorage, resynced on reconnect or next load */ }
+      } catch (err) { if (navigator.onLine) console.error("entry sync failed:", err.message || err); /* offline is fine — resynced later */ }
     }
+    const ts = s => Date.parse(s || 0) || 0;
     async function pullAll() {
-      const { data: rows } = await sb.from("entries").select("*").order("date");
+      let rows, remoteNotes;
+      try {
+        const er = await sb.from("entries").select("*").order("date");
+        if (er.error) throw er.error;
+        rows = er.data || [];
+        const nr = await sb.from("notes").select("*").order("date");
+        remoteNotes = nr.error ? [] : (nr.data || []);
+      } catch (err) { console.error("cloud pull failed:", err.message || err); return; } // surface, don't hide
+
+      // ---- entries: merge by last-write-wins on submitted_at (never clobber newer local) ----
       const all = JSON.parse(localStorage.getItem("csd_entries") || "{}");
-      const remoteDates = new Set();
-      (rows || []).forEach(r => {
-        remoteDates.add(r.date);
-        all[r.date] = { q1: r.q1 || "", q2: r.q2 || "", q3: r.q3 || "", q4: r.q4 || "",
-          q5: r.q5 || "", q6: r.q6 || "", q7: r.q7 || "", q8: r.q8, q9: r.q9 || "",
-          qWake: r.want_wake || "", qOob: r.oob_min || "",
-          submittedAt: r.submitted_at };
+      const remoteByDate = {};
+      rows.forEach(r => { remoteByDate[r.date] = r; });
+      rows.forEach(r => {
+        const local = all[r.date];
+        if (!local || ts(r.submitted_at) >= ts(local.submittedAt)) {
+          all[r.date] = { q1: r.q1 || "", q2: r.q2 || "", q3: r.q3 || "", q4: r.q4 || "",
+            q5: r.q5 || "", q6: r.q6 || "", q7: r.q7 || "", q8: r.q8, q9: r.q9 || "",
+            qWake: r.want_wake || "", qOob: r.oob_min || "", submittedAt: r.submitted_at };
+        }
       });
       localStorage.setItem("csd_entries", JSON.stringify(all));
-      for (const [d, e] of Object.entries(all)) if (!remoteDates.has(d)) pushEntry(d, e);
+      for (const [d, e] of Object.entries(all)) {
+        const r = remoteByDate[d];
+        if (!r || ts(e.submittedAt) > ts(r.submitted_at)) pushEntry(d, e); // upload missing or newer-local
+      }
+
+      // ---- notes: append-only union (dedupe by date+text), push any local-only ones ----
+      const localNotes = JSON.parse(localStorage.getItem("csd_notes") || "[]");
+      const nkey = n => n.date + "|" + n.text;
+      const seen = new Set(), merged = [];
+      [...remoteNotes.map(n => ({ date: n.date, text: n.text })), ...localNotes].forEach(n => {
+        if (!seen.has(nkey(n))) { seen.add(nkey(n)); merged.push(n); }
+      });
+      localStorage.setItem("csd_notes", JSON.stringify(merged));
+      const remoteKeys = new Set(remoteNotes.map(n => nkey({ date: n.date, text: n.text })));
+      localNotes.forEach(n => { if (!remoteKeys.has(nkey(n))) window.cloudPushNote(n); });
+
       window.render();
     }
     window.cloudPushEntry = pushEntry;
@@ -965,7 +994,7 @@ if (configured) {
       try {
         const { data: { user } } = await sb.auth.getUser();
         if (user) await sb.from("notes").insert({ user_id: user.id, date: n.date, text: n.text });
-      } catch (err) { /* offline — note kept in localStorage */ }
+      } catch (err) { if (navigator.onLine) console.error("note sync failed:", err.message || err); }
     };
     window.addEventListener("online", () => { if (window.cloudUser) pullAll(); }); // flush pending entries on reconnect
     window.cloudSend = async () => {
