@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Πίνακας Ιατρού — Sleep Diary</title>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#f9f5ee; --bg2:#e9e6f3; --card:#fffdf9; --ink:#3b3a52; --muted:#8d8a9c;
+    --accent:#2e3654; --accent-soft:#eceef7; --teal:#69b4ae; --good:#4a9a93; --warn:#b0763a; --bad:#b34a4a;
+    --border:#efeae0; --radius:22px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:16px; line-height:1.55;
+    background:linear-gradient(168deg,var(--bg) 0%,var(--bg2) 100%); min-height:100vh}
+  .wrap{max-width:1000px; margin:0 auto; padding:24px 18px 60px}
+  header{display:flex; align-items:center; justify-content:space-between; padding:8px 4px 20px; gap:12px; flex-wrap:wrap}
+  header h1{font-size:1.3rem; font-weight:800; color:var(--accent)}
+  header .sub{font-size:.82rem; color:var(--muted)}
+  .btn{border:none; background:var(--accent); color:#fff; border-radius:999px; padding:12px 20px;
+    font-size:.95rem; font-weight:600; cursor:pointer; box-shadow:0 6px 18px rgba(46,54,84,.18)}
+  .btn.ghost{background:transparent; color:var(--accent); border:1.5px solid var(--teal); box-shadow:none}
+  .btn.small{padding:8px 14px; font-size:.85rem}
+  input{width:100%; padding:13px 15px; font-size:1.02rem; border:1.5px solid transparent;
+    border-radius:14px; background:#f5f1e9; color:var(--ink); margin-top:10px}
+  input:focus{outline:none; border-color:var(--teal); background:#fffdf9}
+  .card{background:var(--card); border-radius:var(--radius); padding:22px; box-shadow:0 10px 34px rgba(94,84,142,.10); margin-bottom:18px}
+  .login{max-width:400px; margin:8vh auto 0}
+  .err{color:var(--bad); font-size:.85rem; margin-top:8px; min-height:1em}
+  table{width:100%; border-collapse:collapse; font-size:.92rem}
+  th,td{padding:11px 8px; text-align:center; border-bottom:1px solid #f0ece3}
+  th{color:var(--muted); font-weight:600; font-size:.76rem; letter-spacing:.02em; text-transform:uppercase}
+  td.name{text-align:left; font-weight:600; color:var(--accent)}
+  tr.patient{cursor:pointer; transition:background .15s}
+  tr.patient:hover{background:var(--accent-soft)}
+  .pill{display:inline-block; padding:3px 10px; border-radius:999px; font-size:.8rem; font-weight:700}
+  .pill.good{background:#e3f1ec; color:var(--good)}
+  .pill.mid{background:#f6efe2; color:var(--warn)}
+  .pill.bad{background:#f6e3e3; color:var(--bad)}
+  .flag{color:var(--bad); font-size:1.05rem}
+  .muted{color:var(--muted)}
+  .tblwrap{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  .backlink{display:inline-block; margin-bottom:12px; color:var(--accent); text-decoration:none; font-weight:600; cursor:pointer}
+  .kpis{display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 16px}
+  .kpi{flex:1 1 120px; background:#f4f8f7; border:1px solid #dce8e6; border-radius:14px; padding:12px; text-align:center}
+  .kpi .v{font-size:1.5rem; font-weight:800; color:var(--accent)}
+  .kpi .l{font-size:.72rem; color:var(--muted)}
+  .empty{color:var(--muted); text-align:center; padding:30px 10px}
+  @media(max-width:560px){ table{font-size:.8rem} th,td{padding:9px 4px} }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="card"><div class="empty">Φόρτωση…</div></div></div>
+
+<script type="module">
+/* ============================================================
+   Doctor dashboard — read-only clinical view.
+   NOTE: the sleep-math helpers below are a copy of index.html's.
+   Keep them in sync (Priority 3 extracts a shared scoring.js).
+   ============================================================ */
+const toMin = t => { if(!t) return null; const [h,m]=String(t).split(":").map(Number); return h*60+m; };
+const anchor = t => { const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); };
+function metrics(e){
+  const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
+  const sol=Math.max(0,Number(e.q3)||0), waso=Math.max(0,Number(e.q5)||0);
+  if(bed===null||outBed===null) return null;
+  const tib=outBed-bed;
+  const pre=(trySl!==null&&trySl>=bed)?trySl-bed:0;
+  const term=(finalWake!==null&&outBed>=finalWake)?outBed-finalWake:0;
+  let tst=tib-pre-sol-waso-term; if(tst<0) tst=0;
+  const want=toMin(e.qWake);
+  const winStart=(trySl!==null)?trySl:bed;
+  const winEnd=(want!==null&&finalWake!==null&&want>finalWake)?want:outBed;
+  const opp=winEnd-winStart;
+  const se=opp>0?Math.min(100,Math.round(tst/opp*100)):null;
+  return {tib,tst,se,sol,waso};
+}
+const statMetrics = e => { const m=metrics(e); return (!m||m.se==null||m.tib<=0||m.tib>16*60)?null:m; };
+const fmtDur = m => m==null ? "—" : Math.floor(m/60)+"ω "+String(m%60).padStart(2,"0")+"λ";
+const isoDays = n => { const out=[], d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()-1); } return out; };
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = id => document.getElementById(id);
+const app = $("app");
+
+/* ---- build per-patient stats from raw rows ---- */
+function buildPatients(profiles, entriesByUser){
+  const last14 = new Set(isoDays(14));
+  return profiles.map(p => {
+    const rows = entriesByUser[p.id] || [];
+    const nights14 = rows.filter(r => last14.has(r.date)).length;
+    const compliance = Math.round(nights14/14*100);
+    const ms = rows.map(statMetrics).filter(Boolean);
+    const avg = f => ms.length ? Math.round(ms.reduce((s,m)=>s+m[f],0)/ms.length) : null;
+    const dates = rows.map(r=>r.date).sort();
+    const lastDate = dates[dates.length-1] || null;
+    const daysSince = lastDate ? Math.round((Date.now()-new Date(lastDate+"T00:00:00"))/86400000) : 999;
+    const avgSE = avg("se"), avgTST = avg("tst");
+    const attention = compliance<50 || (avgSE!=null && avgSE<80) || daysSince>3;
+    return { id:p.id, email:p.email||"—", rows, nights14, compliance, avgSE, avgTST, lastDate, daysSince, attention };
+  }).sort((a,b)=> (b.attention-a.attention) || (a.compliance-b.compliance));
+}
+
+/* ---- render: patient list ---- */
+function renderList(patients){
+  const pill = (v,unit="") => { if(v==null) return `<span class="muted">—</span>`;
+    const cls = v>=85?"good":v>=70?"mid":"bad"; return `<span class="pill ${cls}">${v}${unit}</span>`; };
+  const compPill = c => { const cls=c>=70?"good":c>=40?"mid":"bad"; return `<span class="pill ${cls}">${c}%</span>`; };
+  const rows = patients.map((p,i)=>`
+    <tr class="patient" data-i="${i}">
+      <td class="name">${esc(p.email)} ${p.attention?'<span class="flag" title="Χρειάζεται προσοχή">⚑</span>':''}</td>
+      <td>${compPill(p.compliance)}</td>
+      <td>${p.avgSE!=null?pill(p.avgSE,"%"):'<span class="muted">—</span>'}</td>
+      <td>${p.avgTST!=null?fmtDur(p.avgTST):'<span class="muted">—</span>'}</td>
+      <td class="muted">${p.lastDate?(p.daysSince===0?"σήμερα":p.daysSince+"η"):"—"}</td>
+    </tr>`).join("");
+  app.innerHTML = `
+    <header>
+      <div><h1>Πίνακας Ασθενών</h1><div class="sub">Πέρσα Παπαθεοδοσίου MD MSc PhDc · ${patients.length} ασθενείς</div></div>
+      <button class="btn ghost small" id="logout">Αποσύνδεση</button>
+    </header>
+    <div class="card">
+      ${patients.length ? `<div class="tblwrap"><table>
+        <tr><th>Ασθενής</th><th>Συμμόρφωση 14 ημ.</th><th>Μ.Ο. SE</th><th>Μ.Ο. TST</th><th>Τελευταία</th></tr>
+        ${rows}
+      </table></div>` : `<div class="empty">Δεν υπάρχουν ακόμη ασθενείς με λογαριασμό.</div>`}
+    </div>`;
+  $("logout").onclick = () => window.__logout && window.__logout();
+  app.querySelectorAll("tr.patient").forEach(tr => tr.onclick = () => renderDetail(patients[+tr.dataset.i], patients));
+}
+
+/* ---- render: one patient's detail ---- */
+function renderDetail(p, patients){
+  const last14 = isoDays(14);
+  const nightRow = d => { const e = p.rows.find(r=>r.date===d); if(!e) return `<tr><td>${d.slice(5)}</td><td colspan="5" class="muted">—</td></tr>`;
+    const m = metrics(e)||{}; const qual=["Πολύ κακή","Κακή","Μέτρια","Καλή","Πολύ καλή"];
+    return `<tr><td>${d.slice(5)}</td><td><b>${m.tst!=null?fmtDur(m.tst):"—"}</b></td><td>${m.se!=null?m.se+"%":"—"}</td>
+      <td>${e.q3||0}λ</td><td>${e.q5||0}λ</td><td>${e.q8!=null?qual[e.q8]:"—"}</td></tr>`; };
+  app.innerHTML = `
+    <a class="backlink" id="back">← Πίσω στη λίστα</a>
+    <div class="card">
+      <header style="padding-top:0"><div><h1 style="font-size:1.15rem">${esc(p.email)}</h1>
+        <div class="sub">${p.nights14}/14 νύχτες · τελευταία: ${p.lastDate||"—"}</div></div></header>
+      <div class="kpis">
+        <div class="kpi"><div class="v">${p.compliance}%</div><div class="l">Συμμόρφωση 14ημ.</div></div>
+        <div class="kpi"><div class="v">${p.avgSE!=null?p.avgSE+"%":"—"}</div><div class="l">Μ.Ο. Αποδοτικότητας</div></div>
+        <div class="kpi"><div class="v">${p.avgTST!=null?fmtDur(p.avgTST):"—"}</div><div class="l">Μ.Ο. Ύπνου</div></div>
+      </div>
+      <div class="tblwrap"><table>
+        <tr><th>Ημ.</th><th>Ύπνος</th><th>SE</th><th>Επέλευση</th><th>Αφύπνιση</th><th>Ποιότητα</th></tr>
+        ${last14.map(nightRow).join("")}
+      </table></div>
+    </div>`;
+  $("back").onclick = () => renderList(patients);
+}
+window.__renderList = renderList; window.__buildPatients = buildPatients; // exposed for testing
+
+/* ---- login + role gate + live data ---- */
+function loginScreen(sb, msg){
+  app.innerHTML = `
+    <div class="login card">
+      <h1 style="color:var(--accent)">Πίνακας Ιατρού 🩺</h1>
+      <div class="sub" style="margin:4px 0 6px">Είσοδος μόνο για τη θεράπουσα ιατρό.</div>
+      <input type="email" id="e" placeholder="email" autocomplete="email">
+      <input type="password" id="p" placeholder="κωδικός" autocomplete="current-password">
+      <button class="btn" style="width:100%;margin-top:14px" id="go">Είσοδος</button>
+      <div class="err" id="err">${msg||""}</div>
+    </div>`;
+  $("go").onclick = async () => {
+    $("err").textContent = "";
+    const { error } = await sb.auth.signInWithPassword({ email:$("e").value.trim(), password:$("p").value });
+    if(error){ $("err").textContent = "Λάθος email ή κωδικός."; return; }
+    boot(sb);
+  };
+}
+async function boot(sb){
+  const { data:{ user } } = await sb.auth.getUser();
+  if(!user){ loginScreen(sb); return; }
+  window.__logout = async () => { await sb.auth.signOut(); location.reload(); };
+  // role gate
+  const { data:prof } = await sb.from("profiles").select("role").eq("id", user.id).single();
+  if(!prof || prof.role !== "doctor"){
+    app.innerHTML = `<div class="login card"><h1 style="color:var(--accent)">Μόνο για ιατρούς</h1>
+      <div class="sub" style="margin-top:8px">Ο λογαριασμός <b>${esc(user.email)}</b> δεν έχει ρόλο ιατρού.</div>
+      <button class="btn ghost" style="margin-top:16px" onclick="window.__logout()">Αποσύνδεση</button></div>`;
+    return;
+  }
+  // fetch patients + their entries (RLS lets the doctor read all)
+  const [{ data:profiles }, { data:entries }] = await Promise.all([
+    sb.from("profiles").select("id,email,role").eq("role","patient"),
+    sb.from("entries").select("*")
+  ]);
+  const byUser = {};
+  (entries||[]).forEach(r => { (byUser[r.user_id] = byUser[r.user_id] || []).push(r); });
+  renderList(buildPatients(profiles||[], byUser));
+}
+
+/* ---- start ---- */
+const cfg = window.CSD_CONFIG || {};
+if(!cfg.SUPABASE_URL || String(cfg.SUPABASE_URL).includes("PASTE")){
+  app.innerHTML = `<div class="card empty">Το config.js δεν έχει ρυθμιστεί.</div>`;
+} else {
+  const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+  const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  const { data:{ session } } = await sb.auth.getSession();
+  session ? boot(sb) : loginScreen(sb);
+}
+</script>
+</body>
+</html>
