@@ -131,6 +131,8 @@
   .sheet-ov.show{opacity:1}
   .sheet{position:relative; background:var(--card); border-radius:38px 38px 0 0; padding:24px 24px 32px;
     width:min(480px,100%); box-shadow:0 -12px 44px rgba(60,55,90,.28);
+    max-height:calc(100vh - 16px); max-height:calc(100dvh - 16px); /* never taller than the screen… */
+    overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; /* …and scrollable when content is */
     transform:translateY(60px); transition:transform .38s cubic-bezier(.22,.8,.36,1)}
   .sheet-ov.show .sheet{transform:none}
   .typelink{position:absolute; top:16px; right:18px; z-index:2; border:none; cursor:pointer;
@@ -293,6 +295,7 @@ const STR = {
   consentHint:"Required — your diary is health data and we can only store it with your consent.",
   consentNeeded:"Please tick the consent box — without it we cannot store your medical data.",
   pinPh:"practice PIN (optional)",
+  pinHint:"Only if your doctor gave you a practice PIN — otherwise leave this empty.",
   pinWrong:"That practice PIN doesn't match — check the PIN your doctor gave you, or leave it empty.",
   badCreds:"Email or password is not correct. Please try again.",
   confirmSent:"Almost there — we've emailed you a link to confirm your account. Open it, then sign in.",
@@ -388,6 +391,7 @@ const STR = {
   consentHint:"Απαραίτητο — το ημερολόγιό σας είναι ιατρικά δεδομένα και αποθηκεύεται μόνο με τη συγκατάθεσή σας.",
   consentNeeded:"Επιλέξτε το κουτάκι συγκατάθεσης — χωρίς αυτό δεν μπορούμε να αποθηκεύσουμε τα ιατρικά σας δεδομένα.",
   pinPh:"PIN ιατρείου (προαιρετικό)",
+  pinHint:"Μόνο αν η γιατρός σας σάς έδωσε PIN ιατρείου — αλλιώς αφήστε το κενό.",
   pinWrong:"Το PIN ιατρείου δεν είναι σωστό — ελέγξτε το PIN που σας έδωσε η γιατρός σας ή αφήστε το κενό.",
   badCreds:"Το email ή ο κωδικός δεν είναι σωστά. Δοκιμάστε ξανά.",
   confirmSent:"Σχεδόν τελειώσατε — σας στείλαμε email με σύνδεσμο επιβεβαίωσης. Ανοίξτε τον και μετά συνδεθείτε.",
@@ -1055,6 +1059,7 @@ if (configured) {
           <input type="password" id="liPw" placeholder="${t.pwPh}" style="margin-top:12px"
             autocomplete="${signup ? "new-password" : "current-password"}">
           ${signup ? `<input type="text" id="liPin" placeholder="${t.pinPh}" inputmode="numeric" autocomplete="off" style="margin-top:12px">
+          <div class="small" style="color:var(--muted);margin-top:6px">${t.pinHint}</div>
           <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer">
             <input type="checkbox" id="liConsent" style="width:22px;height:22px;margin:2px 0 0;flex:none;accent-color:var(--accent)">
             <span style="font-size:.92rem"><b>${t.consentLbl}</b><br>
