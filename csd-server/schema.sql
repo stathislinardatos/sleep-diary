@@ -74,7 +74,14 @@ create policy "own profile" on public.profiles
 
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
-  for update using (id = auth.uid());
+  for update
+  using (id = auth.uid())
+  with check (
+    -- patients may edit their own row but NOT change their role:
+    -- without this, anyone could set role='doctor' and read every patient's data
+    id = auth.uid()
+    and role = (select role from public.profiles where id = auth.uid())
+  );
 
 drop policy if exists "own entries" on public.entries;
 create policy "own entries" on public.entries
