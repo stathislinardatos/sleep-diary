@@ -98,7 +98,7 @@ function buildPatients(profiles, entriesByUser){
     const daysSince = lastDate ? Math.round((Date.now()-new Date(lastDate+"T00:00:00"))/86400000) : 999;
     const avgSE = avg("se"), avgTST = avg("tst");
     const attention = compliance<50 || (avgSE!=null && avgSE<80) || daysSince>3;
-    return { id:p.id, email:p.email||"—", rows, nights14, compliance, avgSE, avgTST, lastDate, daysSince, attention };
+    return { id:p.id, email:p.email||"—", consent:p.consent_at||null, pin:p.practice_pin||null, rows, nights14, compliance, avgSE, avgTST, lastDate, daysSince, attention };
   }).sort((a,b)=> (b.attention-a.attention) || (a.compliance-b.compliance));
 }
 
@@ -109,7 +109,7 @@ function renderList(patients){
   const compPill = c => { const cls=c>=70?"good":c>=40?"mid":"bad"; return `<span class="pill ${cls}">${c}%</span>`; };
   const rows = patients.map((p,i)=>`
     <tr class="patient" data-i="${i}">
-      <td class="name">${esc(p.email)} ${p.attention?'<span class="flag" title="Χρειάζεται προσοχή">⚑</span>':''}</td>
+      <td class="name">${esc(p.email)} ${p.attention?'<span class="flag" title="Χρειάζεται προσοχή">⚑</span>':''}${p.consent?` <span title="Συγκατάθεση GDPR: ${esc(p.consent.slice(0,10))}${p.pin?' · PIN ιατρείου ✓':''}" style="opacity:.55;cursor:default">🛡</span>`:''}</td>
       <td>${compPill(p.compliance)}</td>
       <td>${p.avgSE!=null?pill(p.avgSE,"%"):'<span class="muted">—</span>'}</td>
       <td>${p.avgTST!=null?fmtDur(p.avgTST):'<span class="muted">—</span>'}</td>
@@ -187,10 +187,13 @@ async function boot(sb){
     return;
   }
   // fetch patients + their entries (RLS lets the doctor read all)
-  const [{ data:profiles }, { data:entries }] = await Promise.all([
-    sb.from("profiles").select("id,email,role").eq("role","patient"),
+  const [profRes, { data:entries }] = await Promise.all([
+    sb.from("profiles").select("id,email,role,consent_at,practice_pin").eq("role","patient"),
     sb.from("entries").select("*")
   ]);
+  let profiles = profRes.data;
+  if (profRes.error) // consent columns not in the DB yet (manual SQL step pending) — fall back so the list still works
+    ({ data: profiles } = await sb.from("profiles").select("id,email,role").eq("role","patient"));
   const byUser = {};
   (entries||[]).forEach(r => { (byUser[r.user_id] = byUser[r.user_id] || []).push(r); });
   renderList(buildPatients(profiles||[], byUser));

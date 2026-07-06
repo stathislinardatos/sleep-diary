@@ -57,10 +57,16 @@ Then open http://localhost:5178 (patient) or /doctor.html (doctor). Hard-refresh
    `update public.profiles set role='doctor' where email='<email>';`
 2. (Already run:) `alter table public.entries add column if not exists want_wake text; alter table public.entries add column if not exists oob_min text;`
 3. (Already run:) the RLS `with check` fix on `update own profile`.
+4. **GDPR consent → DB** (needed for the consent feature): run in SQL editor:
+   ```sql
+   alter table public.profiles add column if not exists consent_at timestamptz;
+   alter table public.profiles add column if not exists practice_pin text;
+   ```
+   …then re-run the `create or replace function public.handle_new_user()` block from `csd-server/schema.sql` (it now copies `gdpr_consent_at` + `practice_pin` from signup metadata into `profiles`).
 
 ## Roadmap (priority order)
 1. **Doctor dashboard** — v1 done; needs live verification with a doctor session + a populated patient. Next: sleep-restriction helper, richer per-patient trends.
-2. **GDPR consent checkbox** on signup ("I consent to processing my health data"), logged to DB.
+2. **GDPR consent checkbox** on signup — BUILT (checkbox + optional practice PIN `11111` in config.js, consent_at/practice_pin in profiles, 🛡 badge in dashboard); awaiting mobile verification + manual SQL step 4 above.
 3. **Timezone tracking**, **extract `scoring.js`** (shared by index.html + doctor.html), clearly label modified-SE.
 4. Push notifications (morning reminders). Legal: CSD license for for-profit use; official Greek translation.
 

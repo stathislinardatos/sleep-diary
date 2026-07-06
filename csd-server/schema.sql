@@ -9,13 +9,24 @@ create table if not exists public.profiles (
   email text,
   full_name text,
   role text not null default 'patient' check (role in ('patient','doctor')),
+  consent_at timestamptz,   -- when the user ticked the GDPR consent box at signup (null = account predates the checkbox)
+  practice_pin text,        -- practice code entered at signup (tags the account as Dr. P's patient)
   created_at timestamptz not null default now()
 );
+
+-- If the table already exists (live project), add the new columns:
+alter table public.profiles add column if not exists consent_at timestamptz;
+alter table public.profiles add column if not exists practice_pin text;
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, email) values (new.id, new.email)
+  insert into public.profiles (id, email, consent_at, practice_pin)
+  values (
+    new.id, new.email,
+    nullif(new.raw_user_meta_data->>'gdpr_consent_at','')::timestamptz,
+    nullif(new.raw_user_meta_data->>'practice_pin','')
+  )
   on conflict (id) do nothing;
   return new;
 end; $$;

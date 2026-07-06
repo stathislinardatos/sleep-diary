@@ -289,6 +289,11 @@ const STR = {
   forgotPw:"Forgot your password?",
   needBoth:"Please enter your email and password.",
   pwTooShort:"Please use a password of at least 6 characters.",
+  consentLbl:"I consent to the processing of my medical data",
+  consentHint:"Required — your diary is health data and we can only store it with your consent.",
+  consentNeeded:"Please tick the consent box — without it we cannot store your medical data.",
+  pinPh:"practice PIN (optional)",
+  pinWrong:"That practice PIN doesn't match — check the PIN your doctor gave you, or leave it empty.",
   badCreds:"Email or password is not correct. Please try again.",
   confirmSent:"Almost there — we've emailed you a link to confirm your account. Open it, then sign in.",
   resetSent:"If that email has an account, we've sent a link to reset the password. Please check your inbox.",
@@ -379,6 +384,11 @@ const STR = {
   forgotPw:"Ξεχάσατε τον κωδικό σας;",
   needBoth:"Συμπληρώστε το email και τον κωδικό σας.",
   pwTooShort:"Χρησιμοποιήστε κωδικό τουλάχιστον 6 χαρακτήρων.",
+  consentLbl:"Συμφωνώ στην επεξεργασία των ιατρικών μου δεδομένων",
+  consentHint:"Απαραίτητο — το ημερολόγιό σας είναι ιατρικά δεδομένα και αποθηκεύεται μόνο με τη συγκατάθεσή σας.",
+  consentNeeded:"Επιλέξτε το κουτάκι συγκατάθεσης — χωρίς αυτό δεν μπορούμε να αποθηκεύσουμε τα ιατρικά σας δεδομένα.",
+  pinPh:"PIN ιατρείου (προαιρετικό)",
+  pinWrong:"Το PIN ιατρείου δεν είναι σωστό — ελέγξτε το PIN που σας έδωσε η γιατρός σας ή αφήστε το κενό.",
   badCreds:"Το email ή ο κωδικός δεν είναι σωστά. Δοκιμάστε ξανά.",
   confirmSent:"Σχεδόν τελειώσατε — σας στείλαμε email με σύνδεσμο επιβεβαίωσης. Ανοίξτε τον και μετά συνδεθείτε.",
   resetSent:"Αν αυτό το email έχει λογαριασμό, σας στείλαμε σύνδεσμο επαναφοράς κωδικού. Ελέγξτε τα εισερχόμενά σας.",
@@ -1044,6 +1054,12 @@ if (configured) {
           <input type="email" id="liEmail" placeholder="${t.emailPh}" autocomplete="email" inputmode="email">
           <input type="password" id="liPw" placeholder="${t.pwPh}" style="margin-top:12px"
             autocomplete="${signup ? "new-password" : "current-password"}">
+          ${signup ? `<input type="text" id="liPin" placeholder="${t.pinPh}" inputmode="numeric" autocomplete="off" style="margin-top:12px">
+          <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer">
+            <input type="checkbox" id="liConsent" style="width:22px;height:22px;margin:2px 0 0;flex:none;accent-color:var(--accent)">
+            <span style="font-size:.92rem"><b>${t.consentLbl}</b><br>
+              <span class="small" style="color:var(--muted)">${t.consentHint}</span></span>
+          </label>` : ""}
           <button class="btn" id="liGo">${signup ? t.createAccount : t.signIn}</button>
           <div class="okbox" id="liMsg" style="margin-top:12px;display:none"></div>
           <div class="small" id="liErr" style="color:#a33;margin-top:8px"></div>
@@ -1074,10 +1090,15 @@ if (configured) {
           g("liErr").textContent = ""; setMsg("liMsg", "");
           if (!email || !pw) { g("liErr").textContent = t.needBoth; return; }
           if (authMode === "signup" && pw.length < 6) { g("liErr").textContent = t.pwTooShort; return; }
+          if (authMode === "signup" && !g("liConsent").checked) { g("liErr").textContent = t.consentNeeded; return; }
+          const pin = authMode === "signup" ? g("liPin").value.trim() : "";
+          if (pin && pin !== String(window.CSD_CONFIG.PRACTICE_PIN || "")) { g("liErr").textContent = t.pinWrong; return; }
           g("liGo").disabled = true;
           try {
             if (authMode === "signup") {
-              const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.href.split("#")[0] } });
+              const meta = { gdpr_consent: true, gdpr_consent_at: new Date().toISOString() }; // proof of consent, stored on the auth user
+              if (pin) meta.practice_pin = pin;
+              const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.href.split("#")[0], data: meta } });
               if (error) { g("liErr").textContent = error.message; return; }
               if (data.session) { close(); ready(); }   // email confirmation OFF -> straight in
               else setMsg("liMsg", t.confirmSent);           // email confirmation ON  -> check inbox
