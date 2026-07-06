@@ -195,7 +195,8 @@ async function boot(sb){
   if (profRes.error) // consent columns not in the DB yet (manual SQL step pending) — fall back so the list still works
     ({ data: profiles } = await sb.from("profiles").select("id,email,role").eq("role","patient"));
   const byUser = {};
-  (entries||[]).forEach(r => { (byUser[r.user_id] = byUser[r.user_id] || []).push(r); });
+  // DB column is want_wake; the (shared-copy) sleep math reads qWake — same mapping index.html does on pull
+  (entries||[]).forEach(r => { (byUser[r.user_id] = byUser[r.user_id] || []).push({ ...r, qWake: r.want_wake }); });
   renderList(buildPatients(profiles||[], byUser));
 }
 
