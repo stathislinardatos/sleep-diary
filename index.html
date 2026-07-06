@@ -298,6 +298,10 @@ const STR = {
   pinHint:"Only if your doctor gave you a practice PIN — otherwise leave this empty.",
   pinWrong:"That practice PIN doesn't match — check the PIN your doctor gave you, or leave it empty.",
   badCreds:"Email or password is not correct. Please try again.",
+  emailTaken:"There is already an account with this email — try “Sign in” instead.",
+  netFail:"No connection right now — your details were not sent. Please check your internet and try again.",
+  tooMany:"Too many attempts — please wait a minute and try again.",
+  emailBad:"That email address doesn't look right — please check it for typos.",
   confirmSent:"Almost there — we've emailed you a link to confirm your account. Open it, then sign in.",
   resetSent:"If that email has an account, we've sent a link to reset the password. Please check your inbox.",
   newPwTitle:"Set a new password", newPwPh:"your new password", savePw:"Save new password",
@@ -394,6 +398,10 @@ const STR = {
   pinHint:"Μόνο αν η γιατρός σας σάς έδωσε PIN ιατρείου — αλλιώς αφήστε το κενό.",
   pinWrong:"Το PIN ιατρείου δεν είναι σωστό — ελέγξτε το PIN που σας έδωσε η γιατρός σας ή αφήστε το κενό.",
   badCreds:"Το email ή ο κωδικός δεν είναι σωστά. Δοκιμάστε ξανά.",
+  emailTaken:"Υπάρχει ήδη λογαριασμός με αυτό το email — δοκιμάστε «Είσοδος».",
+  netFail:"Δεν υπάρχει σύνδεση αυτή τη στιγμή — τα στοιχεία σας δεν στάλθηκαν. Ελέγξτε το ίντερνετ και δοκιμάστε ξανά.",
+  tooMany:"Πολλές προσπάθειες — περιμένετε ένα λεπτό και δοκιμάστε ξανά.",
+  emailBad:"Το email δεν φαίνεται σωστό — ελέγξτε μήπως έχει κάποιο λάθος.",
   confirmSent:"Σχεδόν τελειώσατε — σας στείλαμε email με σύνδεσμο επιβεβαίωσης. Ανοίξτε τον και μετά συνδεθείτε.",
   resetSent:"Αν αυτό το email έχει λογαριασμό, σας στείλαμε σύνδεσμο επαναφοράς κωδικού. Ελέγξτε τα εισερχόμενά σας.",
   newPwTitle:"Ορίστε νέο κωδικό", newPwPh:"ο νέος σας κωδικός", savePw:"Αποθήκευση νέου κωδικού",
@@ -1045,6 +1053,15 @@ if (configured) {
       ov.style.alignItems = "center"; ov.style.zIndex = "45";
       const g = id => document.getElementById(id);
       const setMsg = (id, text) => { const m = g(id); m.textContent = text || ""; m.style.display = text ? "" : "none"; };
+      // translate raw auth errors into calm GR/EN; unknown errors stay visible (never fake success)
+      const friendly = err => {
+        const m = String((err && err.message) || err || "");
+        if (/already registered|already exists|already been registered/i.test(m)) return t.emailTaken;
+        if (/failed to fetch|networkerror|network request|load failed/i.test(m)) return t.netFail;
+        if (/rate limit|too many|429/i.test(m)) return t.tooMany;
+        if (/email/i.test(m) && /invalid|unable to validate/i.test(m)) return t.emailBad;
+        return m;
+      };
       const close = () => { document.removeEventListener("keydown", onKey); ov.remove(); };
       const onKey = e => { if (e.key === "Escape") close(); };
       document.addEventListener("keydown", onKey);
@@ -1086,7 +1103,7 @@ if (configured) {
           if (!email) { g("liErr").textContent = t.needBoth; return; }
           g("liErr").textContent = "";
           const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
-          if (error) { g("liErr").textContent = error.message; return; } // surface real delivery/config failures
+          if (error) { g("liErr").textContent = friendly(error); return; } // surface real delivery/config failures
           setMsg("liMsg", t.resetSent);
         };
         g("liGo").onclick = async () => {
@@ -1104,12 +1121,13 @@ if (configured) {
               const meta = { gdpr_consent: true, gdpr_consent_at: new Date().toISOString() }; // proof of consent, stored on the auth user
               if (pin) meta.practice_pin = pin;
               const { data, error } = await sb.auth.signUp({ email, password: pw, options: { emailRedirectTo: location.href.split("#")[0], data: meta } });
-              if (error) { g("liErr").textContent = error.message; return; }
+              if (error) { g("liErr").textContent = friendly(error); return; }
               if (data.session) { close(); ready(); }   // email confirmation OFF -> straight in
               else setMsg("liMsg", t.confirmSent);           // email confirmation ON  -> check inbox
             } else {
               const { error } = await sb.auth.signInWithPassword({ email, password: pw });
-              if (error) { g("liErr").textContent = t.badCreds; return; }
+              // a network failure must NOT claim the password is wrong
+              if (error) { const f = friendly(error); g("liErr").textContent = (f === String(error.message||"")) ? t.badCreds : f; return; }
               close(); ready();
             }
           } finally { g("liGo").disabled = false; }

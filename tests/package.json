@@ -1,0 +1,14 @@
+{
+  "name": "csd-tests",
+  "private": true,
+  "description": "Automated test suite for the Consensus Sleep Diary (math, UI, syntax).",
+  "scripts": {
+    "test:math": "node math.test.js",
+    "test:syntax": "node syntax.test.js",
+    "test:ui": "node ui.test.js",
+    "test": "node syntax.test.js && node math.test.js && node ui.test.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}

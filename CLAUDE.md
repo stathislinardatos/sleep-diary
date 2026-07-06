@@ -50,7 +50,9 @@ Then open http://localhost:5178 (patient) or /doctor.html (doctor). Hard-refresh
 - PDF report (client-side, branded) + send via share sheet / mailto greeting.
 - **RLS role-lock applied** (patient cannot escalate to doctor).
 - Custom Gmail SMTP + email confirmation ON.
-- Doctor dashboard v1 (compliance %, avg SE/TST, attention flags, patient detail).
+- Doctor dashboard v1 (compliance %, avg SE/TST, attention flags, patient detail); dashboard maps DB `want_wake`→`qWake` so its SE matches the patient app exactly.
+- GDPR consent checkbox + optional practice PIN (`11111`, set in config.js) at signup; consent timestamp + PIN go to signup metadata (and to `profiles` once manual SQL step 4 runs); 🛡 badge in dashboard.
+- Friendly bilingual auth errors (email taken / no connection / too many tries / bad email); network failures never claim "wrong password"; unknown errors stay visible (no fake success).
 
 ## Pending MANUAL steps (Supabase dashboard)
 1. Make an account a doctor to use the dashboard:
@@ -78,4 +80,5 @@ Then open http://localhost:5178 (patient) or /doctor.html (doctor). Hard-refresh
 - Can't fully test iOS from a preview: the native `<input type=date>` opens the picker on tap by default (don't hide it / don't use `-webkit-appearance:none`); verify centering with a plain element, not the native value.
 
 ## Testing note
-No automated test suite yet — verification is manual/eval in a headless preview. The headless renderer can't rasterize `html2canvas`, so the PDF's visual output must be checked on a real device.
+**Automated suite in `tests/` (~126 checks)** — `cd tests && npm install && npm test` (needs the dev server on :5178 and Edge/Chrome). Covers: sleep-math worked examples + index/doctor parity fuzz, CSD 1–9 wording/order, signup consent+PIN end-to-end (network intercepted — creates no real accounts), every auth error path incl. offline honesty, 4 viewports, popup dismissal, doctor pipeline, PWA/static/security checks. Screenshots in `tests/shots/`. If a math test fails, the doctor's numbers are wrong — fix the code, never the test.
+The headless renderer can't rasterize `html2canvas`, so the PDF's visual output must still be checked on a real device.
