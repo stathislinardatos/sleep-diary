@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Πίνακας Ιατρού — Sleep Diary</title>
 <script src="config.js"></script>
+<script src="scoring.js"></script>
 <style>
   :root{
     --bg:#f9f5ee; --bg2:#e9e6f3; --card:#fffdf9; --ink:#3b3a52; --muted:#8d8a9c;
@@ -57,29 +58,12 @@
 <script type="module">
 /* ============================================================
    Doctor dashboard — read-only clinical view.
-   NOTE: the sleep-math helpers below are a copy of index.html's.
-   Keep them in sync (Priority 3 extracts a shared scoring.js).
+   Sleep math (toMin/anchor/metrics/statMetrics) comes from the
+   shared scoring.js — the SAME file the patient app uses.
    ============================================================ */
-const toMin = t => { if(!t) return null; const [h,m]=String(t).split(":").map(Number); return h*60+m; };
-const anchor = t => { const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); };
-function metrics(e){
-  const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
-  const sol=Math.max(0,Number(e.q3)||0), waso=Math.max(0,Number(e.q5)||0);
-  if(bed===null||outBed===null) return null;
-  const tib=outBed-bed;
-  const pre=(trySl!==null&&trySl>=bed)?trySl-bed:0;
-  const term=(finalWake!==null&&outBed>=finalWake)?outBed-finalWake:0;
-  let tst=tib-pre-sol-waso-term; if(tst<0) tst=0;
-  const want=toMin(e.qWake);
-  const winStart=(trySl!==null)?trySl:bed;
-  const winEnd=(want!==null&&finalWake!==null&&want>finalWake)?want:outBed;
-  const opp=winEnd-winStart;
-  const se=opp>0?Math.min(100,Math.round(tst/opp*100)):null;
-  return {tib,tst,se,sol,waso};
-}
-const statMetrics = e => { const m=metrics(e); return (!m||m.se==null||m.tib<=0||m.tib>16*60)?null:m; };
+const SE_MOD_NOTE = "* SE: τροποποιημένος τύπος του ιατρείου — παράθυρο από «προσπάθεια ύπνου» (Ερ. 2) έως την έγερση (Ερ. 7) ή την επιθυμητή αφύπνιση. Δεν είναι ο τυπικός υπολογισμός CSD (Carney et al., SLEEP 2012).";
 const fmtDur = m => m==null ? "—" : Math.floor(m/60)+"ω "+String(m%60).padStart(2,"0")+"λ";
-const isoDays = n => { const out=[], d=new Date(); for(let i=0;i<n;i++){ out.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()-1); } return out; };
+const isoDays = n => athensDaysBack(n); // Athens-locked (scoring.js), matches the patient app
 const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
 const app = $("app");
@@ -122,9 +106,10 @@ function renderList(patients){
     </header>
     <div class="card">
       ${patients.length ? `<div class="tblwrap"><table>
-        <tr><th>Ασθενής</th><th>Συμμόρφωση 14 ημ.</th><th>Μ.Ο. SE</th><th>Μ.Ο. TST</th><th>Τελευταία</th></tr>
+        <tr><th>Ασθενής</th><th>Συμμόρφωση 14 ημ.</th><th>Μ.Ο. SE*</th><th>Μ.Ο. TST</th><th>Τελευταία</th></tr>
         ${rows}
-      </table></div>` : `<div class="empty">Δεν υπάρχουν ακόμη ασθενείς με λογαριασμό.</div>`}
+      </table></div>
+      <div class="muted" style="font-size:.78rem;margin-top:10px">${SE_MOD_NOTE}</div>` : `<div class="empty">Δεν υπάρχουν ακόμη ασθενείς με λογαριασμό.</div>`}
     </div>`;
   $("logout").onclick = () => window.__logout && window.__logout();
   app.querySelectorAll("tr.patient").forEach(tr => tr.onclick = () => renderDetail(patients[+tr.dataset.i], patients));
@@ -144,13 +129,14 @@ function renderDetail(p, patients){
         <div class="sub">${p.nights14}/14 νύχτες · τελευταία: ${p.lastDate||"—"}</div></div></header>
       <div class="kpis">
         <div class="kpi"><div class="v">${p.compliance}%</div><div class="l">Συμμόρφωση 14ημ.</div></div>
-        <div class="kpi"><div class="v">${p.avgSE!=null?p.avgSE+"%":"—"}</div><div class="l">Μ.Ο. Αποδοτικότητας</div></div>
+        <div class="kpi"><div class="v">${p.avgSE!=null?p.avgSE+"%":"—"}</div><div class="l">Μ.Ο. Αποδοτικότητας*</div></div>
         <div class="kpi"><div class="v">${p.avgTST!=null?fmtDur(p.avgTST):"—"}</div><div class="l">Μ.Ο. Ύπνου</div></div>
       </div>
       <div class="tblwrap"><table>
-        <tr><th>Ημ.</th><th>Ύπνος</th><th>SE</th><th>Επέλευση</th><th>Αφύπνιση</th><th>Ποιότητα</th></tr>
+        <tr><th>Ημ.</th><th>Ύπνος</th><th>SE*</th><th>Επέλευση</th><th>Αφύπνιση</th><th>Ποιότητα</th></tr>
         ${last14.map(nightRow).join("")}
       </table></div>
+      <div class="muted" style="font-size:.78rem;margin-top:10px">${SE_MOD_NOTE}</div>
     </div>`;
   $("back").onclick = () => renderList(patients);
 }

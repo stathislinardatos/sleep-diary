@@ -21,4 +21,10 @@ for (const page of ["index.html", "doctor.html"]) {
     }
   }
 }
+for (const f of ["scoring.js", "config.js", "sw.js"]) {
+  try {
+    execFileSync(process.execPath, ["--check", path.join(__dirname, "..", f)], { stdio: "pipe" });
+    console.log(`OK   ${f}`);
+  } catch (e) { fail++; console.log(`FAIL ${f}:\n${e.stderr}`); }
+}
 process.exit(fail ? 1 : 0);

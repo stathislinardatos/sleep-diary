@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#2e3654">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="config.js"></script>
+<script src="scoring.js"></script>
 <style>
   :root{
     --bg:#f9f5ee; --bg2:#e9e6f3; --card:#fffdf9; --ink:#3b3a52; --muted:#8d8a9c;
@@ -267,7 +268,8 @@ const STR = {
   reportAvg:"Averages over the period",
   patientLabel:"Patient",
   mTSTsub:"Avg total sleep", mSEsub:"Avg efficiency", mSOLsub:"Avg time to fall asleep", mWASOsub:"Avg awake at night",
-  legend:"TST = total sleep · SE = sleep efficiency · SOL = time to fall asleep · WASO = time awake during the night",
+  legend:"TST = total sleep · SE = sleep efficiency (your doctor's modified formula) · SOL = time to fall asleep · WASO = time awake during the night",
+  seModNote:"SE: the practice's modified formula — window from “tried to sleep” to rising / wanted wake-up. Not the standard CSD calculation (Carney et al., SLEEP 2012).",
   preparing:"Preparing your report…", pdfReady:"Your report is ready as a PDF 🤍",
   noDataYet:"Add at least one night before creating a report.",
   guestLimit:"You can keep one day without an account. To save more days — and sync them to your doctor — please create a free account.",
@@ -367,7 +369,8 @@ const STR = {
   reportAvg:"Μέσοι όροι περιόδου",
   patientLabel:"Ασθενής",
   mTSTsub:"Μέσος συνολικός ύπνος", mSEsub:"Μέση αποδοτικότητα", mSOLsub:"Μέσος χρόνος επέλευσης", mWASOsub:"Μέσος χρόνος ξύπνιου",
-  legend:"TST = συνολικός ύπνος · SE = αποδοτικότητα ύπνου · SOL = χρόνος επέλευσης ύπνου · WASO = χρόνος ξύπνιου μέσα στη νύχτα",
+  legend:"TST = συνολικός ύπνος · SE = αποδοτικότητα ύπνου (τροποποιημένος τύπος της γιατρού σας) · SOL = χρόνος επέλευσης ύπνου · WASO = χρόνος ξύπνιου μέσα στη νύχτα",
+  seModNote:"SE: τροποποιημένος τύπος του ιατρείου — παράθυρο από «προσπάθεια ύπνου» έως την έγερση / επιθυμητή αφύπνιση. Δεν είναι ο τυπικός υπολογισμός CSD (Carney et al., SLEEP 2012).",
   preparing:"Ετοιμάζεται η αναφορά σας…", pdfReady:"Η αναφορά σας είναι έτοιμη ως PDF 🤍",
   noDataYet:"Προσθέστε τουλάχιστον μία νύχτα πριν δημιουργήσετε αναφορά.",
   guestLimit:"Χωρίς λογαριασμό μπορείτε να κρατήσετε μία ημέρα. Για να αποθηκεύσετε περισσότερες — και να συγχρονίζονται με τη γιατρό σας — δημιουργήστε δωρεάν λογαριασμό.",
@@ -432,7 +435,7 @@ const entries = () => load("csd_entries") || {};
 const notes   = () => load("csd_notes")   || [];
 const remState= () => load("csd_rem")     || {};
 
-const todayISO = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const todayISO = () => athensToday(); // clinical date locked to Europe/Athens (scoring.js) — travel/phone-timezone can't shift the diary day
 /* readable, centered date label (e.g. "4 Ιουλ 2026"); parse at local midnight to avoid an off-by-one */
 const fmtDate = iso => { try { return new Date(iso+"T00:00:00").toLocaleDateString(lang==="el"?"el-GR":"en-GB",{day:"numeric",month:"short",year:"numeric"}); } catch(e){ return iso; } };
 /* open the native date picker on tap (works on iOS 16+/modern browsers; falls back to focus) */
@@ -441,28 +444,8 @@ function openDatePicker(){ const i=$("f_date"); if(!i) return; try{ if(i.showPic
 function toggleOob(){ const w=Number(($("f_q5")||{}).value)||0; const r=$("oobRow"); if(r) r.style.display = w>20 ? "block" : "none"; }
 
 /* ---------- scoring ---------- */
-function toMin(t){ if(!t) return null; const [h,m]=t.split(":").map(Number); return h*60+m; }
-function anchor(t){ const m=toMin(t); return m===null?null:(m>=720? m-1440 : m); }
-function metrics(e){
-  const bed=anchor(e.q1), trySl=anchor(e.q2), finalWake=toMin(e.q6), outBed=toMin(e.q7);
-  const sol=Math.max(0,Number(e.q3)||0), waso=Math.max(0,Number(e.q5)||0);
-  if(bed===null||outBed===null) return null;
-  const tib = outBed - bed;
-  const preSleep = (trySl!==null && trySl>=bed) ? trySl-bed : 0;
-  const terminal = (finalWake!==null && outBed>=finalWake) ? outBed-finalWake : 0;
-  let tst = tib - preSleep - sol - waso - terminal;
-  if(tst<0) tst=0;
-  // SE window: from "tried to sleep" (Q2) to "out of bed" (Q7) — or to the
-  // "wanted-to-wake" time when that is later than the final awakening (Q6).
-  const want = toMin(e.qWake);
-  const winStart = (trySl!==null) ? trySl : bed;
-  const winEnd = (want!==null && finalWake!==null && want>finalWake) ? want : outBed;
-  const opp = winEnd - winStart;
-  const se = opp>0 ? Math.min(100, Math.round(tst/opp*100)) : null;
-  return {tib, tst, se, sol, waso, opp};
-}
-/* metrics for STATISTICS only — excludes implausible nights so averages/charts aren't skewed */
-function statMetrics(e){ const m=metrics(e); if(!m || m.se==null || m.tib<=0 || m.tib>16*60) return null; return m; }
+/* toMin / anchor / metrics / statMetrics now live in scoring.js —
+   the ONE copy shared with doctor.html. Change the math THERE. */
 const fmtDur = m => { if(m==null) return "—"; const h=Math.floor(m/60); return h+T().h+" "+String(m%60).padStart(2,"0")+T().min; };
 
 /* ---------- rendering ---------- */
@@ -667,12 +650,7 @@ function bindToday(){
 }
 
 /* ---------- Diary ---------- */
-function lastNDays(n){
-  const out=[], d=new Date();
-  for(let i=0;i<n;i++){ const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-    out.push(iso); d.setDate(d.getDate()-1); }
-  return out;
-}
+const lastNDays = n => athensDaysBack(n); // Athens-locked (scoring.js), same window the doctor dashboard uses
 function vDiary(){
   const t=T(), all=entries(), days=lastNDays(14);
   const rows=days.map(d=>{
@@ -870,12 +848,13 @@ function reportHTML(){
     <div style="font-size:16px;font-weight:700;margin:16px 0 3px">${t.reportTitle}</div>
     <div style="font-size:11px;color:#5b6070;margin-bottom:16px">${who}${t.reportPeriod}: ${keys[0]||"—"} → ${keys[keys.length-1]||"—"} &nbsp;·&nbsp; ${keys.length} ${t.nightsWord}</div>
 
-    ${ms.length?`<table style="width:100%;border-collapse:separate;border-spacing:9px 0;margin-bottom:18px"><tr>
+    ${ms.length?`<table style="width:100%;border-collapse:separate;border-spacing:9px 0;margin-bottom:6px"><tr>
       ${card("TST", fmtDur(avg("tst")), t.mTSTsub)}
-      ${card("SE", avg("se")+"%", t.mSEsub)}
+      ${card("SE*", avg("se")+"%", t.mSEsub)}
       ${card("SOL", avg("sol")+"′", t.mSOLsub)}
       ${card("WASO", avg("waso")+"′", t.mWASOsub)}
-    </tr></table>`:""}
+    </tr></table>
+    <div style="font-size:8.5px;color:#5b6070;margin:0 0 14px">* ${t.seModNote}</div>`:""}
 
     <table style="width:100%;border-collapse:collapse;font-size:9px">
       <tr>${t.rHead.map((h,i)=>`<th style="background:#242b45;color:#fff;padding:6px 4px;text-align:${i===11?"left":"center"};font-weight:600;${i===0?"border-radius:8px 0 0 0":""}${i===11?"border-radius:0 8px 0 0":""}">${h}</th>`).join("")}</tr>

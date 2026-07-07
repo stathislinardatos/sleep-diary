@@ -1,10 +1,10 @@
 /* Sleep Diary service worker — app shell cache, offline-friendly */
-const CACHE = "csd-v2";
+const CACHE = "csd-v3"; // v3: shared scoring.js + Athens-locked dates
 
 self.addEventListener("install", e => {
   e.waitUntil(
     caches.open(CACHE)
-      .then(c => c.addAll(["./", "./manifest.json"]))
+      .then(c => c.addAll(["./", "./manifest.json", "./config.js", "./scoring.js"]))
       .then(() => self.skipWaiting())
   );
 });
